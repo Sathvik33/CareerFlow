@@ -2,6 +2,7 @@
 __pycache__/
 *.py[codz]
 *$py.class
+*.pyc
 
 # C extensions
 *.so
@@ -149,6 +150,7 @@ activemq-data/
 
 # Environments
 .env
+.env.example
 .envrc
 .venv
 env/
@@ -216,3 +218,8 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+alembic.ini
+script.py.mako
+alembic/versions
+alembic/__pycache__
