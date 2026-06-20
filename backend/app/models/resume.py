@@ -4,8 +4,8 @@ from sqlalchemy import Boolean, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.app.db.base import Base
-from backend.app.models.mixins import TimestampMixin
+from app.db.base import Base
+from app.models.mixins import TimestampMixin
 
 class Resume(Base, TimestampMixin):
     __tablename__ = "resumes"

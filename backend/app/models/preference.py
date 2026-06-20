@@ -4,8 +4,8 @@ from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from backend.app.db.base import Base
-from backend.app.models.mixins import TimestampMixin
+from app.db.base import Base
+from app.models.mixins import TimestampMixin
 
 class UserPreference(Base, TimestampMixin):
     __tablename__ = "user_preferences"

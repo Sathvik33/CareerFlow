@@ -3,7 +3,7 @@ from uuid import UUID as PyUUID
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, relationship, mapped_column
-from backend.app.db.base import Base
+from app.db.base import Base
 
 class User(Base):
 
