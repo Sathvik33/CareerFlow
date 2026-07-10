@@ -15,7 +15,7 @@ from app.db.database import SessionLocal
 from pydantic import BaseModel
 
 class ScanRequest(BaseModel):
-    websites: list[str] = ["boards.greenhouse.io", "jobs.lever.co", "remoteok.com"]
+    websites: list[str] = ["Arbeitnow", "RemoteOK", "Adzuna", "USAJobs", "Greenhouse", "Lever", "WeWorkRemotely", "WorkAtAStartup", "Wellfound", "Himalayas"]
     max_jobs: int = 5
 
 router = APIRouter(prefix="/reports", tags=["Reports"])

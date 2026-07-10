@@ -4,24 +4,33 @@ from datetime import datetime, timezone
 from dateutil import parser as date_parser
 from app.models.preference import UserPreference
 from app.agents.connectors import JobSource
+from app.agents.connectors.utils import get_random_user_agent, role_matches
 
 class RemoteOKConnector(JobSource):
     async def fetch_jobs(self, url: str, preferences: UserPreference) -> list[dict]:
         jobs = []
         
         try:
+            headers = {"User-Agent": get_random_user_agent()}
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
                 if response.status_code == 200:
                     data = response.json()
                     for item in data[1:]: # index 0 is legal notice
                         
+                        # Filter by role locally
+                        text_to_search = f"{item.get('position', '')} {item.get('description', '')} {','.join(item.get('tags', []))}"
+                        roles = preferences.roles or ["engineer"]
+                        
+                        # Check if role matches
+                        if not role_matches(text_to_search, roles):
+                            continue
+                            
                         # Apply experience filter locally if available
                         desc = item.get("description", "").lower()
                         exp = (preferences.experience_level or "").lower()
                         if exp and exp not in desc and f"{exp} level" not in desc:
-                            # It's a weak filter but we can skip if experience strongly mis-matches
-                            pass # We won't strictly filter to get more results
+                            pass
                         
                         posted_at_raw = item.get("date")
                         posted_at = None

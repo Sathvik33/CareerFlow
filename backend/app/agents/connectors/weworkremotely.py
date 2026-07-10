@@ -4,13 +4,15 @@ import urllib.parse
 from datetime import datetime, timezone
 from app.models.preference import UserPreference
 from app.agents.connectors import JobSource
+from app.agents.connectors.utils import get_random_user_agent
 
 class WeWorkRemotelyConnector(JobSource):
     async def fetch_jobs(self, url: str, preferences: UserPreference) -> list[dict]:
         jobs = []
         try:
+            headers = {"User-Agent": get_random_user_agent()}
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
                 if response.status_code == 200:
                     html = response.text
                     try:

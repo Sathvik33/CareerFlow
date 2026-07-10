@@ -5,6 +5,7 @@ from app.agents.connectors.arbeitnow import ArbeitnowConnector
 from app.agents.connectors.remoteok import RemoteOKConnector
 from app.agents.connectors.greenhouse import GreenhouseConnector
 from app.agents.connectors.lever import LeverConnector
+from app.agents.connectors.usajobs import USAJobsConnector
 from app.agents.connectors.weworkremotely import WeWorkRemotelyConnector
 from app.agents.connectors.workatastartup import WorkAtAStartupConnector
 from app.agents.connectors.wellfound import WellfoundConnector
@@ -12,11 +13,11 @@ from app.agents.connectors.himalayas import HimalayasConnector
 from app.agents.connectors.adzuna import AdzunaConnector
 from app.models.preference import UserPreference
 
-async def search_jobs(preferences: UserPreference, max_jobs: int = 50) -> list[dict]:
+async def search_jobs(preferences: UserPreference, max_jobs: int = 50, target_websites: list[str] = None) -> list[dict]:
     """Uses Dynamic URL Generator to fetch jobs from all sources and cleans them with Pandas."""
     
     # 1. Generate URLs
-    url_targets = generate_dynamic_urls(preferences)
+    url_targets = generate_dynamic_urls(preferences, target_websites)
     print(f"Generated {len(url_targets)} URLs to fetch.")
     
     # 2. Map sources to connector instances
@@ -26,6 +27,7 @@ async def search_jobs(preferences: UserPreference, max_jobs: int = 50) -> list[d
         "Adzuna": AdzunaConnector(),
         "Greenhouse": GreenhouseConnector(),
         "Lever": LeverConnector(),
+        "USAJobs": USAJobsConnector(),
         "WeWorkRemotely": WeWorkRemotelyConnector(),
         "WorkAtAStartup": WorkAtAStartupConnector(),
         "Wellfound": WellfoundConnector(),
@@ -51,7 +53,7 @@ async def search_jobs(preferences: UserPreference, max_jobs: int = 50) -> list[d
         elif isinstance(result, Exception):
             print(f"Connector task failed with exception: {result}")
             
-    print(f"Raw jobs collected: {len(all_jobs)}")
+    print(f"Total raw jobs collected across all sources: {len(all_jobs)}")
     
     if not all_jobs:
         return []
@@ -59,11 +61,14 @@ async def search_jobs(preferences: UserPreference, max_jobs: int = 50) -> list[d
     # --- Data Cleaning with Pandas ---
     df = pd.DataFrame(all_jobs)
     
-    # 1. Clean strings (strip whitespace)
+    # 1. Clean strings (strip whitespace and remove chars incompatible with Windows WIN1252 Postgres)
     string_cols = ["company", "title", "location", "description"]
     for col in string_cols:
         if col in df.columns:
+            # Strip whitespace
             df[col] = df[col].astype(str).str.strip()
+            # Remove emojis/chars that crash WIN1252 postgres
+            df[col] = df[col].apply(lambda x: x.encode('cp1252', 'ignore').decode('cp1252') if isinstance(x, str) else x)
             
     # 2. Handle missing or 'nan' values
     df.replace({"nan": "", "None": "", "Unknown": ""}, inplace=True)
@@ -78,6 +83,20 @@ async def search_jobs(preferences: UserPreference, max_jobs: int = 50) -> list[d
         
     # Convert back to list of dicts and ensure NaN/NaT are converted to None for PostgreSQL
     cleaned_jobs = df.where(pd.notnull(df), None).to_dict(orient="records")
+    
+    def clean_nulls_and_win1252(obj):
+        # We must check isinstance FIRST before pd.isna to prevent ValueError on lists/dicts
+        if not isinstance(obj, (bool, list, dict)) and pd.isna(obj):
+            return None
+        if isinstance(obj, str):
+            return obj.encode('cp1252', 'ignore').decode('cp1252')
+        elif isinstance(obj, list):
+            return [clean_nulls_and_win1252(i) for i in obj]
+        elif isinstance(obj, dict):
+            return {k: clean_nulls_and_win1252(v) for k, v in obj.items()}
+        return obj
+        
+    cleaned_jobs = [clean_nulls_and_win1252(job) for job in cleaned_jobs]
     
     print(f"Total jobs after Pandas cleaning: {len(cleaned_jobs)}")
     return cleaned_jobs

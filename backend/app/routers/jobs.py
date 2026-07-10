@@ -14,8 +14,8 @@ def list_jobs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    yesterday = datetime.now(timezone.utc) - timedelta(days=1)
-    return db.query(Job).filter(Job.scraped_at >= yesterday).all()
+    from app.models.match_result import MatchResult
+    return db.query(Job).join(MatchResult, Job.id == MatchResult.job_id).filter(MatchResult.user_id == current_user.id).all()
 
 @router.get("/{job_id}", response_model=JobResponse)
 def get_job(

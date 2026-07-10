@@ -21,20 +21,22 @@ export default function Preferences() {
     fetchPreferences();
   }, []);
 
+  const [roleInput, setRoleInput] = useState('');
+  const [locationInput, setLocationInput] = useState('');
+  const [skillInput, setSkillInput] = useState('');
+
   const fetchPreferences = async () => {
     try {
       const { data } = await api.get('/preferences/');
       setFormData(data);
+      if (data.roles) setRoleInput(data.roles.join(', '));
+      if (data.locations) setLocationInput(data.locations.join(', '));
+      if (data.preferred_skills) setSkillInput(data.preferred_skills.join(', '));
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleArrayChange = (e, field) => {
-    const values = e.target.value.split(',').map(v => v.trim()).filter(v => v);
-    setFormData({ ...formData, [field]: values });
   };
 
   const handleChange = (e, field) => {
@@ -59,7 +61,13 @@ export default function Preferences() {
     setSaving(true);
     setMessage('');
     try {
-      await api.put('/preferences/', formData);
+      const payload = {
+        ...formData,
+        roles: roleInput.split(',').map(v => v.trim()).filter(Boolean),
+        locations: locationInput.split(',').map(v => v.trim()).filter(Boolean),
+        preferred_skills: skillInput.split(',').map(v => v.trim()).filter(Boolean)
+      };
+      await api.put('/preferences/', payload);
       setMessage('✅ Preferences saved successfully!');
     } catch (err) {
       const detail = err.response?.data?.detail || 'Error saving preferences';
@@ -86,8 +94,8 @@ export default function Preferences() {
             <label style={styles.label}>Target Roles (comma separated)</label>
             <input 
               type="text" 
-              value={formData.roles?.join(', ')} 
-              onChange={(e) => handleArrayChange(e, 'roles')} 
+              value={roleInput} 
+              onChange={(e) => setRoleInput(e.target.value)} 
               placeholder="e.g., Software Engineer, Data Scientist"
               style={styles.input} 
             />
@@ -112,8 +120,8 @@ export default function Preferences() {
             <label style={styles.label}>Locations (comma separated)</label>
             <input 
               type="text" 
-              value={formData.locations?.join(', ')} 
-              onChange={(e) => handleArrayChange(e, 'locations')} 
+              value={locationInput} 
+              onChange={(e) => setLocationInput(e.target.value)} 
               placeholder="e.g., New York, San Francisco"
               style={styles.input} 
             />
@@ -123,8 +131,8 @@ export default function Preferences() {
             <label style={styles.label}>Preferred Skills</label>
             <input 
               type="text" 
-              value={formData.preferred_skills?.join(', ')} 
-              onChange={(e) => handleArrayChange(e, 'preferred_skills')} 
+              value={skillInput} 
+              onChange={(e) => setSkillInput(e.target.value)} 
               placeholder="e.g., Python, React, PostgreSQL"
               style={styles.input} 
             />

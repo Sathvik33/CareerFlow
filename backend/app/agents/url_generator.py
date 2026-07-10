@@ -10,10 +10,11 @@ def generate_queries(preferences: UserPreference) -> list[str]:
     skills = preferences.preferred_skills if preferences and preferences.preferred_skills else []
     
     for role in roles[:3]:
-        queries.append(role)
+        safe_role = role.replace("/", " ")
+        queries.append(safe_role)
         if skills:
             for skill in skills[:2]:
-                queries.append(f"{role} {skill}")
+                queries.append(f"{safe_role} {skill}")
     
     # Add an explicit remote query if requested
     if preferences and preferences.locations and "remote" in [l.lower() for l in preferences.locations]:
@@ -22,10 +23,12 @@ def generate_queries(preferences: UserPreference) -> list[str]:
     unique_queries = list(dict.fromkeys(queries))
     return unique_queries[:5]
 
-def generate_dynamic_urls(preferences: UserPreference) -> list[dict]:
+def generate_dynamic_urls(preferences: UserPreference, target_websites: list[str] = None) -> list[dict]:
     """Generates dynamic search URLs for every supported job source."""
     queries = generate_queries(preferences)
     urls = []
+    
+    allowed_sources = [w.lower() for w in target_websites] if target_websites else None
     
     primary_location = ""
     if preferences and preferences.locations:
@@ -36,13 +39,13 @@ def generate_dynamic_urls(preferences: UserPreference) -> list[dict]:
     salary_min = preferences.salary_min or ""
     salary_max = preferences.salary_max or ""
     
-    # 1. Arbeitnow (Fetch all)
+    # 1. Arbeitnow
     urls.append({
         "source": "Arbeitnow",
         "url": "https://www.arbeitnow.com/api/job-board-api"
     })
     
-    # 2. RemoteOK (Fetch all)
+    # 2. RemoteOK
     urls.append({
         "source": "RemoteOK",
         "url": "https://remoteok.com/api"
@@ -68,7 +71,6 @@ def generate_dynamic_urls(preferences: UserPreference) -> list[dict]:
                 params["salary_max"] = salary_max
                 
             query_string = urllib.parse.urlencode(params)
-            # Defaulting country to 'us' or 'in' based on location heuristic
             country = "in" if "india" in primary_location.lower() or "hyderabad" in primary_location.lower() else "us"
             
             urls.append({
@@ -76,8 +78,22 @@ def generate_dynamic_urls(preferences: UserPreference) -> list[dict]:
                 "url": f"https://api.adzuna.com/v1/api/jobs/{country}/search/1?{query_string}"
             })
             
-    # 4. Greenhouse (Hardcoded slugs for now as requested by user plan)
-    greenhouse_companies = ["openai", "stripe", "notion"]
+    # 4. USAJobs
+    for query in queries:
+        params = {
+            "Keyword": query,
+            "ResultsPerPage": 100
+        }
+        if primary_location:
+            params["LocationName"] = primary_location
+        query_string = urllib.parse.urlencode(params)
+        urls.append({
+            "source": "USAJobs",
+            "url": f"https://data.usajobs.gov/api/search?{query_string}"
+        })
+            
+    # 5. Greenhouse (Dynamic company slugs)
+    greenhouse_companies = ["openai", "stripe", "notion", "figma"]
     for company in greenhouse_companies:
         urls.append({
             "source": "Greenhouse",
@@ -91,8 +107,6 @@ def generate_dynamic_urls(preferences: UserPreference) -> list[dict]:
             "source": "Lever",
             "url": f"https://api.lever.co/v0/postings/{company}?mode=json"
         })
-        
-    # 7. WeWorkRemotely
     for query in queries:
         encoded_query = urllib.parse.quote(query)
         urls.append({
@@ -128,12 +142,26 @@ def generate_dynamic_urls(preferences: UserPreference) -> list[dict]:
         if job_type:
             params["employment_type"] = job_type
         if exp_level:
-            params["seniority"] = exp_level
+            # Map common user inputs to Himalayas expected formats
+            level = exp_level.lower()
+            if "fresh" in level or "entry" in level or "student" in level:
+                params["seniority"] = "entry-level"
+            elif "junior" in level:
+                params["seniority"] = "junior"
+            elif "senior" in level:
+                params["seniority"] = "senior"
+            elif "mid" in level:
+                params["seniority"] = "mid-level"
+            elif "lead" in level:
+                params["seniority"] = "lead"
             
         query_string = urllib.parse.urlencode(params)
         urls.append({
             "source": "Himalayas",
             "url": f"https://himalayas.app/jobs/api/search?{query_string}"
         })
+        
+    if allowed_sources:
+        urls = [u for u in urls if u["source"].lower() in allowed_sources]
         
     return urls

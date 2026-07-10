@@ -3,13 +3,15 @@ import uuid
 from datetime import datetime, timezone
 from app.models.preference import UserPreference
 from app.agents.connectors import JobSource
+from app.agents.connectors.utils import get_random_user_agent, role_matches
 
 class ArbeitnowConnector(JobSource):
     async def fetch_jobs(self, url: str, preferences: UserPreference) -> list[dict]:
         jobs = []
         try:
+            headers = {"User-Agent": get_random_user_agent()}
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
                 if response.status_code == 200:
                     data = response.json().get("data", [])
                     
@@ -24,11 +26,11 @@ class ArbeitnowConnector(JobSource):
                         location = item.get("location", "")
                         is_remote = item.get("remote", False)
                         
-                        text_to_search = f"{title} {description}".lower()
+                        text_to_search = f"{title} {description}"
                         loc_to_search = location.lower()
                         
                         # Check role match
-                        role_match = any(r.lower() in text_to_search for r in roles)
+                        role_match = role_matches(text_to_search, roles)
                         
                         # Check location match if locations specified
                         loc_match = True

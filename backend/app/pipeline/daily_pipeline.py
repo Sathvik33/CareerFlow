@@ -37,14 +37,34 @@ class CareerFlowState(TypedDict):
 async def collect_jobs(state: CareerFlowState):
     preferences = state.get("preferences")
     max_jobs = state.get("max_jobs", 50)
+    target_websites = state.get("target_websites", [])
 
     print(f"[collect_jobs] Starting job aggregation...")
-    raw_jobs = await search_jobs(preferences, max_jobs)
+    raw_jobs = await search_jobs(preferences, max_jobs, target_websites)
     return {"raw_jobs": raw_jobs}
 
 def deduplicate(state: CareerFlowState):
     db = state["db"]
     new_jobs = deduplicate_jobs(state["raw_jobs"], db)
+    
+    # We enforce max_jobs AFTER deduplication, so we don't accidentally
+    # drop all new jobs just because the first batch were duplicates!
+    max_jobs = state.get("max_jobs", 50)
+    
+    # Shuffle new_jobs to get a variety of sources instead of just the first ones
+    import random
+    random.shuffle(new_jobs)
+    
+    if len(new_jobs) > max_jobs:
+        # Keep only the requested amount, and delete the rest from the DB to prevent them 
+        # from becoming permanently orphaned/un-analyzed
+        orphaned_jobs = new_jobs[max_jobs:]
+        new_jobs = new_jobs[:max_jobs]
+        
+        for orphan in orphaned_jobs:
+            db.delete(orphan)
+        db.commit()
+        
     return {"new_jobs": new_jobs}
 
 async def parse_jds(state: CareerFlowState):

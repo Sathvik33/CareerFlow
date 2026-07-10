@@ -3,15 +3,17 @@ import uuid
 from datetime import datetime, timezone
 from app.models.preference import UserPreference
 from app.agents.connectors import JobSource
+from app.agents.connectors.utils import get_random_user_agent, role_matches
 
 class GreenhouseConnector(JobSource):
     async def fetch_jobs(self, url: str, preferences: UserPreference) -> list[dict]:
         jobs = []
-        roles = [r.lower() for r in (preferences.roles or ["engineer"])]
+        roles = preferences.roles or ["engineer"]
         
+        headers = {"User-Agent": get_random_user_agent()}
         async with httpx.AsyncClient(timeout=10.0) as client:
             try:
-                response = await client.get(url)
+                response = await client.get(url, headers=headers)
                 if response.status_code == 200:
                     data = response.json().get("jobs", [])
                     company = url.split("/boards/")[1].split("/jobs")[0].capitalize() if "/boards/" in url else "Unknown"
@@ -19,13 +21,13 @@ class GreenhouseConnector(JobSource):
                         title = item.get("title", "")
                         location = item.get("location", {}).get("name", "")
                         
-                        text_to_search = f"{title} {location}".lower()
+                        text_to_search = f"{title} {location}"
                         
-                        if any(r in text_to_search for r in roles):
+                        if role_matches(text_to_search, roles):
                             jobs.append({
                                 "source": "Greenhouse",
                                 "external_id": str(item.get("id", uuid.uuid4())),
-                                "company": company.capitalize(),
+                                "company": company,
                                 "title": title,
                                 "location": location,
                                 "remote": "remote" in location.lower(),

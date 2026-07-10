@@ -13,11 +13,8 @@ export default function Dashboard() {
   const [scanMessage, setScanMessage] = useState('');
   const [scanLogs, setScanLogs] = useState([]);
   
-  const JOB_BOARDS = [
-    'boards.greenhouse.io', 'jobs.lever.co', 'remoteok.com', 'remotive.com', 
-    'usajobs.gov'
-  ];
-  const [targetWebsites, setTargetWebsites] = useState(['boards.greenhouse.io', 'jobs.lever.co', 'remoteok.com']);
+  const JOB_BOARDS = ['Arbeitnow', 'RemoteOK', 'Adzuna', 'USAJobs', 'Greenhouse', 'Lever', 'WeWorkRemotely', 'WorkAtAStartup', 'Wellfound', 'Himalayas'];
+  const [targetWebsites, setTargetWebsites] = useState(JOB_BOARDS);
   const [maxJobs, setMaxJobs] = useState(5);
 
   const toggleWebsite = (site) => {
@@ -207,7 +204,7 @@ export default function Dashboard() {
             onChange={(e) => setMaxJobs(parseInt(e.target.value) || 5)}
             disabled={scanning}
             min={1}
-            max={50}
+            max={100}
             style={{ padding: '10px 16px', borderRadius: '8px', border: '1px solid var(--border-color)', outline: 'none', width: '150px', fontSize: '15px' }}
           />
         </div>
