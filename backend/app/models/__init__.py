@@ -3,3 +3,9 @@ from app.models.preference import UserPreference
 from app.models.resume import Resume
 from app.models.notification import NotificationChannel
 from app.models.report import DailyReport
+from app.models.job import Job
+from app.models.resume_embedding import ResumeEmbedding
+from app.models.job_embedding import JobEmbedding
+from app.models.match_result import MatchResult
+from app.models.recommendation import Recommendation
+from app.models.notification_log import NotificationLog

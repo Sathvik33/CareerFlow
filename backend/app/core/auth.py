@@ -9,23 +9,18 @@ from app.db.database import get_db
 from sqlalchemy.orm import Session
 from app.models.user import User
 
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+security = HTTPBearer()
 
 def get_current_user(
-        authorization: str | None = Header(None),
+        credentials: HTTPAuthorizationCredentials = Depends(security),
         db: Session = Depends(get_db)):
-    print("Inside get curr user")
-    if not authorization:
+    if not credentials:
         raise HTTPException(
             status_code=401,
             detail="Authorization header missing"
         )
-    try:
-        token = authorization.split(" ")[1]
-    except:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid Authorization Header"
-        )
+    token = credentials.credentials
     try:
         payload=jwt.decode(
             token,

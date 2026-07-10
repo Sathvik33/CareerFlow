@@ -11,6 +11,7 @@ pwd_context=CryptContext(
     deprecated="auto"
 )
 
+
 def hash_password(password: str):
     return pwd_context.hash(password)
 
@@ -48,3 +49,29 @@ def create_access_token(
 
     return encoded_jwt
 
+
+def create_refresh_token(
+        data: dict,
+        expires_delta: timedelta | None = None
+):
+    to_encode=data.copy()
+    if expires_delta:
+        expire=(
+            datetime.utcnow() + expires_delta
+        )
+    else:
+        expire=(
+            datetime.utcnow()+timedelta(days=int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", 30)))
+        )
+
+    to_encode.update(
+        {"exp": expire, "type": "refresh"}
+    )
+
+    encoded_jwt=jwt.encode(
+        to_encode,
+        os.getenv("SECRET_KEY"),
+        algorithm=os.getenv("ALGORITHM")
+    )
+
+    return encoded_jwt

@@ -3,7 +3,11 @@ from pydantic import BaseModel
 
 class NotificationChannelCreate(BaseModel):
     channel: str
-    desination: str
+    destination: str
+
+class NotificationChannelUpdate(BaseModel):
+    destination: str | None = None
+    is_active: bool | None = None
 
 
 class NotificationChannelResponse(BaseModel):

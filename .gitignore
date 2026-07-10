@@ -223,3 +223,4 @@ alembic.ini
 script.py.mako
 alembic/versions
 alembic/__pycache__
+*.pdf

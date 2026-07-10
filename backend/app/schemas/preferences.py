@@ -12,17 +12,21 @@ class ExperienceLevel(str, Enum):
 class JobType(str, Enum):
     internship="internship"
     full_time="full_time"
+    part_time="part_time"
     contract="contract"
-    remote="remote"
 
+class WorkMode(str, Enum):
+    remote = "remote"
+    hybrid = "hybrid"
+    onsite = "onsite"
 
-class Preferences(BaseModel):
+class PreferenceCreate(BaseModel):
     roles: list[str]
     locations: list[str]
     experience_level: ExperienceLevel
     job_types: list[JobType]
-    preferrd_skills: list[str]
-
+    preferred_skills: list[str]
+    work_modes: list[WorkMode]
     salary_min: int | None = None
     salary_max: int | None = None
 
@@ -33,6 +37,7 @@ class PreferenceUpdate(BaseModel):
     experience_level: ExperienceLevel | None = None
     job_types: list[JobType] | None = None
     preferred_skills: list[str] | None = None
+    work_modes: list[WorkMode] | None = None
 
     salary_min: int | None = None
     salary_max: int | None = None
@@ -46,6 +51,7 @@ class PreferenceResponse(BaseModel):
     experience_level: ExperienceLevel
     job_types: list[JobType]
     preferred_skills: list[str]
+    work_modes: list[WorkMode]
     salary_min: int | None
     salary_max: int | None
 

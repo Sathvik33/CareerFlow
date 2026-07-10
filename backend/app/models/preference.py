@@ -3,7 +3,7 @@ from uuid import uuid4
 from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-
+from sqlalchemy.dialects.postgresql import ARRAY
 from app.db.base import Base
 from app.models.mixins import TimestampMixin
 
@@ -30,6 +30,8 @@ class UserPreference(Base, TimestampMixin):
     experience_level: Mapped[str]
 
     job_types: Mapped[list] = mapped_column(JSONB)
+
+    work_modes: Mapped[list] = mapped_column(JSONB)
 
     preferred_skills: Mapped[list] = mapped_column(JSONB)
 
