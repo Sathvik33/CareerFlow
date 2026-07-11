@@ -8,7 +8,7 @@ async def parse_jd(raw_description: str) -> JDModel:
     parser = PydanticOutputParser(pydantic_object=JDModel)
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert HR agent. Parse the following job description and extract the required fields as structured JSON.\n{format_instructions}"),
+        ("system", "You are an expert HR agent. Parse the following job description and extract the required fields as structured JSON. Be highly thorough when extracting the required technical and soft skills, as they will be used for semantic matching against candidates. If a salary or compensation range is mentioned, extract it into the salary field.\n{format_instructions}"),
         ("user", "{raw_description}")
     ])
 

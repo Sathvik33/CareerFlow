@@ -17,6 +17,7 @@ class JobResponse(BaseModel):
     skills: Optional[List[str]] = None
     posted_date: Optional[datetime] = None
     scraped_at: datetime
+    final_score: Optional[float] = None
     
     model_config = {
         "from_attributes": True

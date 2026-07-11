@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Briefcase, TrendingUp, Building, Zap, AlertTriangle, Lightbulb, X, FileText, Settings } from 'lucide-react';
+import { Briefcase, TrendingUp, Building, Zap, AlertTriangle, Lightbulb, X, FileText, Settings, Mail } from 'lucide-react';
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -320,9 +320,21 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="glass-panel" style={{...styles.card, marginTop: '24px', background: 'var(--gradient-positive)', color: 'var(--text-primary)'}}>
-            <h3 style={{...styles.cardTitle, color: 'var(--text-primary)'}}><Lightbulb size={20}/> AI Recommended Action</h3>
-            <p style={{ fontSize: '16px', fontWeight: 600, marginTop: '8px' }}>{report.recommended_action}</p>
+          <div className="glass-panel" style={{...styles.card, marginTop: '24px', background: 'var(--gradient-positive)', color: 'var(--text-primary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
+            <div>
+              <h3 style={{...styles.cardTitle, color: 'var(--text-primary)'}}><Lightbulb size={20}/> AI Recommended Action</h3>
+              <div style={{ fontSize: '15px', fontWeight: 500, marginTop: '8px', lineHeight: 1.6 }} dangerouslySetInnerHTML={{ __html: report.recommended_action }} />
+            </div>
+            <button onClick={async () => {
+              try {
+                await api.post('/reports/email');
+                alert("Email dispatched successfully!");
+              } catch(e) {
+                alert("Failed to send email. Check backend logs.");
+              }
+            }} style={{...styles.emailButton, whiteSpace: 'nowrap'}}>
+              <Mail size={18} /> Send to Email
+            </button>
           </div>
         </>
       )}
@@ -351,5 +363,20 @@ const styles = {
   modalContent: { position: 'relative', width: '90%', maxWidth: '600px', padding: '40px', backgroundColor: 'var(--surface-color)', borderRadius: '16px' },
   closeButton: { position: 'absolute', top: '20px', right: '20px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' },
   stepBox: { display: 'flex', alignItems: 'center', gap: '16px', padding: '16px', backgroundColor: 'rgba(30, 41, 59, 0.03)', borderRadius: '8px' },
-  primaryButton: { width: '100%', padding: '16px', backgroundColor: 'var(--primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 600, cursor: 'pointer', transition: 'background var(--transition-fast)' }
+  primaryButton: { width: '100%', padding: '16px', backgroundColor: 'var(--primary)', color: '#FFF', border: 'none', borderRadius: '8px', fontSize: '16px', fontWeight: 600, cursor: 'pointer', transition: 'background var(--transition-fast)' },
+  emailButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    background: 'var(--text-primary)',
+    color: '#FFF',
+    padding: '10px 20px',
+    borderRadius: 'var(--radius-sm)',
+    fontSize: '14px',
+    fontWeight: 600,
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'opacity 0.2s ease',
+    boxShadow: 'var(--shadow-sm)'
+  }
 };

@@ -7,11 +7,12 @@ class ResumeModel(BaseModel):
     education: list[str]
 
 class JDModel(BaseModel):
-    title: str
-    company: str
-    skills: list[str]
-    seniority: str | None
-    description_summary: str
+    title: str | None = None
+    company: str | None = None
+    skills: list[str] = []
+    seniority: str | None = None
+    description_summary: str | None = None
+    salary: str | None = None
 
 class GapAnalysisModel(BaseModel):
     missing_skills: list[str]

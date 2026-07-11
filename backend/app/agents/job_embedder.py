@@ -14,7 +14,7 @@ def embed_jobs(db: Session, jobs: list[Job]) -> None:
         if not job.description:
             continue
 
-        text = job.description[:2000]
+        text = job.description[:5000]
         embeddings = generate_embeddings([text])
         if embeddings:
             emb_record = JobEmbedding(

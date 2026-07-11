@@ -73,7 +73,17 @@ async def parse_jds(state: CareerFlowState):
     jds = await asyncio.gather(*tasks) if tasks else []
     
     for i, job in enumerate(state["new_jobs"]):
-        job.structured_json = jds[i].model_dump()
+        parsed_jd = jds[i]
+        job.structured_json = parsed_jd.model_dump()
+        
+        # Explicitly save the extracted skills list to the Job row
+        if parsed_jd.skills:
+            job.skills = [s for s in parsed_jd.skills if s is not None]
+            
+        # Explicitly save the extracted salary to the Job row if it was found
+        if parsed_jd.salary and not job.salary:
+            job.salary = parsed_jd.salary
+            
     db.commit()
     return {"jds": jds}
 
@@ -90,6 +100,18 @@ async def match_and_analyze(state: CareerFlowState):
     db = state["db"]
     resume = state["resume"]
     user_id = state["user_id"]
+
+    # Delete previous match results for this user that are OLDER than today
+    from app.models.match_result import MatchResult
+    from datetime import datetime, timezone
+    from sqlalchemy import cast, Date
+    today = datetime.now(timezone.utc).date()
+    
+    db.query(MatchResult).filter(
+        MatchResult.user_id == user_id,
+        cast(MatchResult.computed_at, Date) < today
+    ).delete(synchronize_session=False)
+    db.commit()
 
     match_results = []
     gap_analyses = []
@@ -199,7 +221,13 @@ async def notify(state: CareerFlowState):
     from app.models.report import DailyReport
     db_report = db.query(DailyReport).filter_by(user_id=state["user_id"]).order_by(DailyReport.created_at.desc()).first()
     if db_report:
-        await dispatch_notifications(db, state["user_id"], db_report)
+        await dispatch_notifications(
+            db, 
+            state["user_id"], 
+            db_report, 
+            new_jobs=state.get("new_jobs", []), 
+            match_results=state.get("match_results", [])
+        )
     return {}
 
 builder = StateGraph(CareerFlowState)

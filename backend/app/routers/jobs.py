@@ -15,7 +15,24 @@ def list_jobs(
     current_user: User = Depends(get_current_user)
 ):
     from app.models.match_result import MatchResult
-    return db.query(Job).join(MatchResult, Job.id == MatchResult.job_id).filter(MatchResult.user_id == current_user.id).all()
+    from datetime import datetime, timezone
+    from sqlalchemy import cast, Date
+    today = datetime.now(timezone.utc).date()
+    
+    results = (
+        db.query(Job, MatchResult.final_score)
+        .join(MatchResult, Job.id == MatchResult.job_id)
+        .filter(MatchResult.user_id == current_user.id)
+        .filter(cast(MatchResult.computed_at, Date) == today)
+        .all()
+    )
+    
+    jobs_with_scores = []
+    for job, score in results:
+        job.final_score = score
+        jobs_with_scores.append(job)
+        
+    return jobs_with_scores
 
 @router.get("/{job_id}", response_model=JobResponse)
 def get_job(

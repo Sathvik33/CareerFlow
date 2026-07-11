@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 import json
 import asyncio
+from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from app.db.database import get_db
 from app.core.auth import get_current_user
@@ -26,8 +27,10 @@ def get_latest_report(
     current_user: User = Depends(get_current_user)
 ):
     report = db.query(DailyReport).filter(DailyReport.user_id == current_user.id).order_by(DailyReport.created_at.desc()).first()
-    if not report:
-        raise HTTPException(status_code=404, detail="No reports found")
+    
+    # Reset dashboard if the report is not from today
+    if not report or report.created_at.date() != datetime.now(timezone.utc).date():
+        raise HTTPException(status_code=404, detail="No reports found today")
     return report
 
 @router.get("/", response_model=list[DailyReportResponse])
@@ -37,7 +40,41 @@ def list_reports(
 ):
     return db.query(DailyReport).filter(DailyReport.user_id == current_user.id).order_by(DailyReport.created_at.desc()).all()
 
+from app.agents.notification_router import dispatch_notifications
+from app.models.match_result import MatchResult
+from app.models.job import Job
+from sqlalchemy import cast, Date
 
+@router.post("/email")
+async def trigger_email_notification(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    report = db.query(DailyReport).filter(DailyReport.user_id == current_user.id).order_by(DailyReport.created_at.desc()).first()
+    if not report or report.created_at.date() != datetime.now(timezone.utc).date():
+        raise HTTPException(status_code=400, detail="No report generated today to send.")
+        
+    today = datetime.now(timezone.utc).date()
+    
+    # Query today's jobs and match results
+    results = (
+        db.query(Job, MatchResult)
+        .join(MatchResult, Job.id == MatchResult.job_id)
+        .filter(MatchResult.user_id == current_user.id)
+        .filter(cast(MatchResult.computed_at, Date) == today)
+        .all()
+    )
+    
+    jobs = []
+    match_results = []
+    for job, mr in results:
+        job.final_score = mr.final_score
+        jobs.append(job)
+        match_results.append(mr)
+        
+    await dispatch_notifications(db, str(current_user.id), report, new_jobs=jobs, match_results=match_results)
+    
+    return {"status": "success"}
 async def run_pipeline_background(user_id: str):
     db = SessionLocal()
     try:
@@ -133,7 +170,8 @@ async def stream_report_generation(
                     for node_name, node_state in event.items():
                         log_msg = f"Completed step: {node_name}"
                         if node_name == "collect_jobs":
-                            log_msg = f"Scraping websites (LinkedIn, Wellfound, Internshala)... Found {len(node_state.get('raw_jobs', []))} potential jobs."
+                            sites_str = ", ".join(request.websites) if request.websites else "all sources"
+                            log_msg = f"Scraping websites ({sites_str})... Found {len(node_state.get('raw_jobs', []))} potential jobs."
                         elif node_name == "deduplicate":
                             log_msg = f"Removed duplicate listings. Kept {len(node_state.get('new_jobs', []))} fresh jobs."
                         elif node_name == "parse_jds":

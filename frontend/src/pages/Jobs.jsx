@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Briefcase, MapPin, DollarSign, ExternalLink, Clock, Target } from 'lucide-react';
+import { Briefcase, MapPin, DollarSign, ExternalLink, Clock, Target, Mail } from 'lucide-react';
 
 export default function Jobs() {
   const [jobs, setJobs] = useState([]);
@@ -22,16 +22,30 @@ export default function Jobs() {
     fetchJobs();
   }, []);
 
+  const handleSendEmail = async () => {
+    try {
+      await api.post('/reports/email');
+      alert("Email dispatched successfully!");
+    } catch (err) {
+      alert("Failed to send email. Check backend logs.");
+    }
+  };
+
   if (loading) return <div style={{ padding: '40px', fontSize: '18px' }}>Fetching latest jobs...</div>;
   if (error) return <div style={{ padding: '40px', color: 'red' }}>{error}</div>;
 
   return (
     <div className="animate-fade-in" style={styles.container}>
       <div style={styles.header}>
-        <h1 style={{ fontSize: '32px', margin: 0, marginBottom: '8px' }}>Matched Jobs</h1>
-        <p style={{ color: 'var(--text-secondary)', fontSize: '16px', margin: 0 }}>
-          Based on your latest intelligence reports and preferences.
-        </p>
+        <div>
+          <h1 style={{ fontSize: '32px', margin: 0, marginBottom: '8px' }}>Matched Jobs</h1>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '16px', margin: 0 }}>
+            Based on your latest intelligence reports and preferences.
+          </p>
+        </div>
+        <button onClick={handleSendEmail} style={styles.emailButton}>
+          <Mail size={18} /> Send to Email
+        </button>
       </div>
 
       {jobs.length === 0 ? (
@@ -51,9 +65,9 @@ export default function Jobs() {
                     {job.company}
                   </div>
                 </div>
-                {job.recommendation_score && (
+                {job.final_score && (
                   <div style={styles.scoreBadge}>
-                    <Target size={14} /> {Math.round(job.recommendation_score)}% Match
+                    <Target size={14} /> {Math.round(job.final_score)}% Match
                   </div>
                 )}
               </div>
@@ -113,7 +127,25 @@ const styles = {
     padding: '20px 0',
   },
   header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: '32px',
+  },
+  emailButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    background: 'var(--text-primary)',
+    color: '#FFF',
+    padding: '10px 20px',
+    borderRadius: 'var(--radius-sm)',
+    fontSize: '14px',
+    fontWeight: 600,
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'opacity 0.2s ease',
+    boxShadow: 'var(--shadow-sm)'
   },
   grid: {
     display: 'grid',

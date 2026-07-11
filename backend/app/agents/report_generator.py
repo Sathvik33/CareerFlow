@@ -19,9 +19,13 @@ async def generate_daily_report(
     recommended_actions = []
     for rec in recommendation_list:
         if rec.action_items:
-            recommended_actions.append(rec.action_items[0])
+            recommended_actions.extend(rec.action_items)
 
-    recommended_action = recommended_actions[0] if recommended_actions else "Review more jobs to identify skill gaps."
+    if recommended_actions:
+        unique_actions = list(dict.fromkeys(recommended_actions))[:4]
+        recommended_action = "Here are your top recommended actions based on the analysis:<br/>" + "".join([f"&bull; {action}<br/>" for action in unique_actions])
+    else:
+        recommended_action = "Review more jobs to identify skill gaps."
 
     # Research the top companies in parallel
     company_insights = {}

@@ -1,8 +1,10 @@
+import os
 from sentence_transformers import SentenceTransformer
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 
-# Load model once at module level
+# Load model once at module level. Set offline mode so it doesn't crash on DNS issues.
+os.environ["HF_HUB_OFFLINE"] = "1"
 embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
 def get_text_chunks(text: str, chunk_size: int = 500, chunk_overlap: int = 50) -> list[str]:
