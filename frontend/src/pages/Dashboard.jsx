@@ -4,14 +4,11 @@ import { useAuth } from '../context/AuthContext';
 import { Briefcase, TrendingUp, Building, Zap, AlertTriangle, Lightbulb, X, FileText, Settings, Mail } from 'lucide-react';
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, scanning, setScanning, scanMessage, setScanMessage, scanLogs, setScanLogs } = useAuth();
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [greeting, setGreeting] = useState('');
-  const [scanning, setScanning] = useState(false);
-  const [scanMessage, setScanMessage] = useState('');
-  const [scanLogs, setScanLogs] = useState([]);
   
   const JOB_BOARDS = ['Arbeitnow', 'RemoteOK', 'Adzuna', 'USAJobs', 'Greenhouse', 'Lever', 'WeWorkRemotely', 'WorkAtAStartup', 'Wellfound', 'Himalayas'];
   const [targetWebsites, setTargetWebsites] = useState(JOB_BOARDS);
@@ -37,6 +34,14 @@ export default function Dashboard() {
   useEffect(() => {
     fetchReport();
   }, []);
+
+  // Refetch the report if the scan finishes while the component is mounted
+  // (e.g. if the user navigated away and back, the old component's fetchReport would trigger)
+  useEffect(() => {
+    if (!scanning && scanMessage.includes('complete')) {
+      fetchReport();
+    }
+  }, [scanning, scanMessage]);
 
   const handleScanJobs = async () => {
     setScanning(true);

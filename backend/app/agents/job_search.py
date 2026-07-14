@@ -52,8 +52,55 @@ async def search_jobs(preferences: UserPreference, max_jobs: int = 50, target_we
             all_jobs.extend(result)
         elif isinstance(result, Exception):
             print(f"Connector task failed with exception: {result}")
+
+    # 4. Soft role pre-filter: Keep jobs that share at least one keyword with target roles
+    if preferences and preferences.roles:
+        import re
+        role_words = set()
+        stopwords = {"a", "an", "the", "of", "and", "in", "to", "for", "with", "on", "at"}
+        for r in preferences.roles:
+            words = re.findall(r'\b[a-z0-9]+\b', r.lower())
+            for w in words:
+                if w not in stopwords:
+                    role_words.add(w)
+                    
+        if role_words:
+            filtered_jobs = []
+            for job in all_jobs:
+                title_words = set(re.findall(r'\b[a-z0-9]+\b', str(job.get("title", "")).lower()))
+                desc = str(job.get("description", "")).lower()
+                
+                if any(w in title_words for w in role_words) or any(r.lower().strip() in desc for r in preferences.roles if r.strip()):
+                    filtered_jobs.append(job)
+            all_jobs = filtered_jobs
+
+    # 5. Filter out jobs that strictly contradict the user's experience level in the title
+    if preferences and preferences.experience_level:
+        exp = preferences.experience_level.lower()
+        exclude_words = []
+        if exp in ["student", "fresher", "junior"]:
+            exclude_words = ["senior", "lead", "principal", "staff", "manager", "director", "architect", "sr."]
+        elif exp == "mid":
+            exclude_words = ["principal", "staff", "director", "architect", "intern", "student", "entry", "trainee"]
+        elif exp == "senior":
+            exclude_words = ["junior", "intern", "student", "entry", "fresher", "trainee", "jr."]
             
-    print(f"Total raw jobs collected across all sources: {len(all_jobs)}")
+        if exclude_words:
+            all_jobs = [
+                job for job in all_jobs 
+                if not any(word in str(job.get("title", "")).lower().split() for word in exclude_words)
+            ]
+
+    # Shuffle and drastically limit raw jobs to save processing time
+    import random
+    random.shuffle(all_jobs)
+    
+    # We fetch a buffer of 2x max_jobs just in case some are duplicates
+    limit = max_jobs * 2
+    if len(all_jobs) > limit:
+        all_jobs = all_jobs[:limit]
+        
+    print(f"Total raw jobs collected across all sources (capped for speed): {len(all_jobs)}")
     
     if not all_jobs:
         return []

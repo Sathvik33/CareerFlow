@@ -1,6 +1,6 @@
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LayoutDashboard, Settings, FileText, LogOut, Bell, Briefcase } from 'lucide-react';
+import { LayoutDashboard, Settings, FileText, LogOut, Bell, Briefcase, User } from 'lucide-react';
 
 export default function Layout() {
   const { logout } = useAuth();
@@ -11,6 +11,7 @@ export default function Layout() {
     { path: '/jobs', label: 'Job Matches', icon: Briefcase },
     { path: '/resume', label: 'Resume Hub', icon: FileText },
     { path: '/preferences', label: 'Preferences', icon: Settings },
+    { path: '/profile', label: 'Profile', icon: User },
     { path: '/notifications', label: 'Notifications', icon: Bell }
   ];
 

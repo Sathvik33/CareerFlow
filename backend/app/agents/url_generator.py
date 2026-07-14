@@ -93,7 +93,12 @@ def generate_dynamic_urls(preferences: UserPreference, target_websites: list[str
         })
             
     # 5. Greenhouse (Dynamic company slugs)
-    greenhouse_companies = ["openai", "stripe", "notion", "figma"]
+    greenhouse_companies = [
+        "openai", "stripe", "notion", "figma", "discord", 
+        "twitch", "reddit", "pinterest", "asana", "datadog", 
+        "snowflake", "hashicorp", "doordash", "instacart", "okta",
+        "gitlab", "coursera", "duolingo", "plaid", "roblox"
+    ]
     for company in greenhouse_companies:
         urls.append({
             "source": "Greenhouse",
@@ -101,7 +106,11 @@ def generate_dynamic_urls(preferences: UserPreference, target_websites: list[str
         })
         
     # 6. Lever
-    lever_companies = ["netflix", "canva", "anthropic"]
+    lever_companies = [
+        "netflix", "canva", "anthropic", "yelp", "quora", 
+        "atlassian", "palantir", "peloton", "robinhood", "shopify",
+        "kiva", "eventbrite", "lyft", "github", "hootsuite"
+    ]
     for company in lever_companies:
         urls.append({
             "source": "Lever",

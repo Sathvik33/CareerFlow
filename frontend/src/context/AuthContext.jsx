@@ -6,6 +6,11 @@ const AuthContext = createContext();
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  
+  // Global Scanning State to preserve UI when navigating away from Dashboard
+  const [scanning, setScanning] = useState(false);
+  const [scanMessage, setScanMessage] = useState('');
+  const [scanLogs, setScanLogs] = useState([]);
 
   // Check if user is logged in on mount
   useEffect(() => {
@@ -24,11 +29,12 @@ export const AuthProvider = ({ children }) => {
     fetchUser();
   }, []);
 
-  const login = (token, refreshToken) => {
+  const login = async (token, refreshToken) => {
     localStorage.setItem('token', token);
     localStorage.setItem('refresh_token', refreshToken);
     // After login, fetch the user details
-    api.get('/users/me').then(({ data }) => setUser(data));
+    const { data } = await api.get('/users/me');
+    setUser(data);
   };
 
   const logout = () => {
@@ -38,7 +44,12 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, loading }}>
+    <AuthContext.Provider value={{ 
+      user, login, logout, loading,
+      scanning, setScanning,
+      scanMessage, setScanMessage,
+      scanLogs, setScanLogs
+    }}>
       {!loading && children}
     </AuthContext.Provider>
   );

@@ -44,3 +44,22 @@ def get_job(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
     return job
+
+@router.delete("/{job_id}/match")
+def delete_job_match(
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    from app.models.match_result import MatchResult
+    match = db.query(MatchResult).filter(
+        MatchResult.job_id == job_id,
+        MatchResult.user_id == current_user.id
+    ).first()
+    
+    if not match:
+        raise HTTPException(status_code=404, detail="Job match not found")
+        
+    db.delete(match)
+    db.commit()
+    return {"message": "Job match deleted successfully"}

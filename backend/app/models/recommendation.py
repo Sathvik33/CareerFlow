@@ -2,7 +2,7 @@ from uuid import uuid4
 
 from sqlalchemy import Float, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, backref
 
 from app.db.base import Base
 
@@ -24,4 +24,4 @@ class Recommendation(Base):
     action_items: Mapped[list] = mapped_column(JSONB)
     projected_improvement_pct: Mapped[float] = mapped_column(Float)
 
-    match_result = relationship("MatchResult", backref="recommendations")
+    match_result = relationship("MatchResult", backref=backref("recommendations", cascade="all, delete-orphan", passive_deletes=True))

@@ -28,9 +28,9 @@ def get_latest_report(
 ):
     report = db.query(DailyReport).filter(DailyReport.user_id == current_user.id).order_by(DailyReport.created_at.desc()).first()
     
-    # Reset dashboard if the report is not from today
-    if not report or report.created_at.date() != datetime.now(timezone.utc).date():
-        raise HTTPException(status_code=404, detail="No reports found today")
+    # Reset dashboard if the report is not from today (relaxed for testing)
+    if not report:
+        raise HTTPException(status_code=404, detail="No reports found")
     return report
 
 @router.get("/", response_model=list[DailyReportResponse])

@@ -7,6 +7,7 @@ import Preferences from './pages/Preferences';
 import Resume from './pages/Resume';
 import Notifications from './pages/Notifications';
 import Jobs from './pages/Jobs';
+import Profile from './pages/Profile';
 
 import Layout from './components/Layout';
 
@@ -36,6 +37,7 @@ function App() {
           <Route path="resume" element={<Resume />} />
           <Route path="notifications" element={<Notifications />} />
           <Route path="jobs" element={<Jobs />} />
+          <Route path="profile" element={<Profile />} />
           <Route index element={<Navigate to="dashboard" />} />
         </Route>
         

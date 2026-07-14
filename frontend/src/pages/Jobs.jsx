@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../services/api';
-import { Briefcase, MapPin, DollarSign, ExternalLink, Clock, Target, Mail } from 'lucide-react';
+import { Briefcase, MapPin, DollarSign, ExternalLink, Clock, Target, Mail, Trash2 } from 'lucide-react';
 
 export default function Jobs() {
   const [jobs, setJobs] = useState([]);
@@ -28,6 +28,16 @@ export default function Jobs() {
       alert("Email dispatched successfully!");
     } catch (err) {
       alert("Failed to send email. Check backend logs.");
+    }
+  };
+
+  const handleDeleteJob = async (jobId) => {
+    try {
+      await api.delete(`/jobs/${jobId}/match`);
+      setJobs(jobs.filter(job => job.id !== jobId));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to delete job match.");
     }
   };
 
@@ -65,11 +75,20 @@ export default function Jobs() {
                     {job.company}
                   </div>
                 </div>
-                {job.final_score && (
-                  <div style={styles.scoreBadge}>
-                    <Target size={14} /> {Math.round(job.final_score)}% Match
-                  </div>
-                )}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', alignItems: 'flex-end' }}>
+                  {job.final_score && (
+                    <div style={styles.scoreBadge}>
+                      <Target size={14} /> {Math.round(job.final_score)}% Match
+                    </div>
+                  )}
+                  <button 
+                    onClick={() => handleDeleteJob(job.id)}
+                    style={styles.deleteButton}
+                    title="Remove from matches"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
               
               <div style={styles.metaInfo}>
@@ -240,5 +259,17 @@ const styles = {
     textDecoration: 'none',
     transition: 'opacity 0.2s ease',
     boxShadow: 'var(--shadow-md)'
+  },
+  deleteButton: {
+    background: 'rgba(231, 76, 60, 0.1)',
+    color: '#E74C3C',
+    border: 'none',
+    padding: '6px',
+    borderRadius: '50%',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    transition: 'all 0.2s ease'
   }
 };
