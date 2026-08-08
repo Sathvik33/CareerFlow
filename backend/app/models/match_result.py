@@ -1,12 +1,25 @@
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import Float, ForeignKey, DateTime
+from sqlalchemy import Float, ForeignKey, DateTime, String, Text
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
 from app.db.base import Base
+
+MATCH_STATUSES = (
+    "matched",
+    "saved",
+    "applied",
+    "interview",
+    "offer",
+    "rejected",
+    "dismissed",
+)
+
+ACTIVE_PIPELINE = ("saved", "applied", "interview", "offer", "rejected")
+
 
 class MatchResult(Base):
     __tablename__ = "match_results"
@@ -42,8 +55,20 @@ class MatchResult(Base):
     missing_skills: Mapped[list] = mapped_column(JSONB)
     strengths: Mapped[list] = mapped_column(JSONB)
 
+    status: Mapped[str] = mapped_column(
+        String(32),
+        default="matched",
+        server_default="matched",
+        index=True,
+    )
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
     computed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), 
+        DateTime(timezone=True),
         default=func.now()
     )
 

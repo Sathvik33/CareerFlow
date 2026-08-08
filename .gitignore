@@ -224,3 +224,7 @@ script.py.mako
 alembic/versions
 alembic/__pycache__
 *.pdf
+
+# Crawlee runtime storage
+storage/
+backend/storage/
