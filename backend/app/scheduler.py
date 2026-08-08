@@ -24,7 +24,7 @@ async def run_daily_pipeline_for_all_users():
                 "user_id": str(user.id),
                 "resume": resume,
                 "preferences": preferences,
-                "target_websites": ["boards.greenhouse.io", "jobs.lever.co", "remoteok.com"],
+                "target_websites": ["Greenhouse", "Lever", "RemoteOK", "Indeed"],
                 "max_jobs": 10,
                 "raw_jobs": [],
                 "new_jobs": [],
