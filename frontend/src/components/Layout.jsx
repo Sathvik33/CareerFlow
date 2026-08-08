@@ -8,7 +8,7 @@ export default function Layout() {
 
   const navItems = [
     { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/jobs', label: 'Job Matches', icon: Briefcase },
+    { path: '/jobs', label: 'Job Tracker', icon: Briefcase },
     { path: '/resume', label: 'Resume Hub', icon: FileText },
     { path: '/preferences', label: 'Preferences', icon: Settings },
     { path: '/profile', label: 'Profile', icon: User },
