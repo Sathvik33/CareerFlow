@@ -101,22 +101,24 @@ async def match_and_analyze(state: CareerFlowState):
     resume = state["resume"]
     user_id = state["user_id"]
 
-    # Delete previous match results for this user that are OLDER than today
-    from app.models.match_result import MatchResult
+    from app.models.match_result import ACTIVE_PIPELINE, MatchResult
     from datetime import datetime, timezone
     from sqlalchemy import cast, Date
+
     today = datetime.now(timezone.utc).date()
-    
+
+    # Drop stale matched/saved/dismissed rows; keep apply-pipeline history
     db.query(MatchResult).filter(
         MatchResult.user_id == user_id,
-        cast(MatchResult.computed_at, Date) < today
+        cast(MatchResult.computed_at, Date) < today,
+        ~MatchResult.status.in_(ACTIVE_PIPELINE),
     ).delete(synchronize_session=False)
     db.commit()
 
     match_results = []
     gap_analyses = []
     recommendations = []
-    
+
     gap_tasks = []
     match_data = []
 
@@ -126,8 +128,7 @@ async def match_and_analyze(state: CareerFlowState):
         sem_score = compute_semantic_score(db, str(resume.id), str(job.id))
         bm25_score = compute_bm25_score(resume.raw_text, job.description)
         final_score = (sem_score * 0.7) + (bm25_score * 0.3)
-        
-        # Reward remote preferences if applicable
+
         preferences = state.get("preferences")
         if preferences and "Remote" in (preferences.locations or []) and job.remote:
             final_score += 5.0
@@ -139,7 +140,6 @@ async def match_and_analyze(state: CareerFlowState):
         else:
             parsed_resume = ResumeModel(skills=[], projects=[], experience=[], education=[])
 
-        # Prepare arguments for the async tasks
         gap_tasks.append(analyze_gap(parsed_resume, jd, sem_score, bm25_score))
         match_data.append({
             "job_id": job.id,
@@ -148,10 +148,8 @@ async def match_and_analyze(state: CareerFlowState):
             "final_score": final_score
         })
 
-    # Execute gap analysis concurrently
     gap_analyses = await asyncio.gather(*gap_tasks) if gap_tasks else []
-    
-    # Execute recommendations concurrently
+
     rec_tasks = [generate_recommendations(gap) for gap in gap_analyses]
     recommendations = await asyncio.gather(*rec_tasks) if rec_tasks else []
 
@@ -160,18 +158,45 @@ async def match_and_analyze(state: CareerFlowState):
     for i, data in enumerate(match_data):
         gap = gap_analyses[i]
         rec = recommendations[i]
-        mr = MatchResult(
-            user_id=user_id,
-            job_id=data["job_id"],
-            resume_id=resume.id,
-            semantic_score=data["sem_score"],
-            bm25_score=data["bm25_score"],
-            final_score=data["final_score"],
-            missing_skills=gap.missing_skills,
-            strengths=gap.strengths
+
+        existing = (
+            db.query(MatchResult)
+            .filter(
+                MatchResult.user_id == user_id,
+                MatchResult.job_id == data["job_id"],
+            )
+            .first()
         )
-        db.add(mr)
-        db.flush()
+
+        if existing:
+            existing.semantic_score = data["sem_score"]
+            existing.bm25_score = data["bm25_score"]
+            existing.final_score = data["final_score"]
+            existing.missing_skills = gap.missing_skills
+            existing.strengths = gap.strengths
+            existing.resume_id = resume.id
+            existing.computed_at = datetime.now(timezone.utc)
+            if existing.status == "dismissed":
+                existing.status = "matched"
+            mr = existing
+            db.flush()
+            db.query(Recommendation).filter(
+                Recommendation.match_result_id == mr.id
+            ).delete(synchronize_session=False)
+        else:
+            mr = MatchResult(
+                user_id=user_id,
+                job_id=data["job_id"],
+                resume_id=resume.id,
+                semantic_score=data["sem_score"],
+                bm25_score=data["bm25_score"],
+                final_score=data["final_score"],
+                missing_skills=gap.missing_skills,
+                strengths=gap.strengths,
+                status="matched",
+            )
+            db.add(mr)
+            db.flush()
 
         rec_record = Recommendation(
             match_result_id=mr.id,
