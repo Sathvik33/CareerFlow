@@ -10,8 +10,14 @@ export default function Dashboard() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [greeting, setGreeting] = useState('');
   
-  const JOB_BOARDS = ['Arbeitnow', 'RemoteOK', 'Adzuna', 'USAJobs', 'Greenhouse', 'Lever', 'WeWorkRemotely', 'WorkAtAStartup', 'Wellfound', 'Himalayas'];
-  const [targetWebsites, setTargetWebsites] = useState(JOB_BOARDS);
+  const JOB_BOARDS = [
+    'Arbeitnow', 'RemoteOK', 'Adzuna', 'USAJobs', 'Greenhouse', 'Lever',
+    'WeWorkRemotely', 'WorkAtAStartup', 'Wellfound', 'Himalayas',
+    'Indeed', 'LinkedIn', 'Glassdoor', 'Google', 'ZipRecruiter', 'Naukri',
+  ];
+  const [targetWebsites, setTargetWebsites] = useState([
+    'Arbeitnow', 'RemoteOK', 'Greenhouse', 'Lever', 'Indeed',
+  ]);
   const [maxJobs, setMaxJobs] = useState(5);
 
   const toggleWebsite = (site) => {
@@ -35,8 +41,6 @@ export default function Dashboard() {
     fetchReport();
   }, []);
 
-  // Refetch the report if the scan finishes while the component is mounted
-  // (e.g. if the user navigated away and back, the old component's fetchReport would trigger)
   useEffect(() => {
     if (!scanning && scanMessage.includes('complete')) {
       fetchReport();
@@ -137,7 +141,6 @@ export default function Dashboard() {
   return (
     <div className="animate-fade-in" style={styles.container}>
       
-      {/* Onboarding Modal */}
       {showOnboarding && (
         <div style={styles.modalOverlay}>
           <div className="glass-panel" style={styles.modalContent}>
