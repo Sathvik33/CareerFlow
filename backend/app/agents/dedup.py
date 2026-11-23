@@ -12,7 +12,12 @@ def deduplicate_jobs(raw_jobs: list[dict], db: Session) -> list[Job]:
     
     # Sort jobs by posted_date desc so we keep the newest if there are duplicates in raw_jobs
     def get_sort_key(j):
-        return j.get('posted_date') or j.get('scraped_at')
+        val = j.get('posted_date') or j.get('scraped_at')
+        if not val:
+            return ""
+        if hasattr(val, 'isoformat'):
+            return val.isoformat()
+        return str(val)
         
     raw_jobs.sort(key=get_sort_key, reverse=True)
     

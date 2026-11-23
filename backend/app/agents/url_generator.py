@@ -1,22 +1,18 @@
 import os
 import urllib.parse
+from dotenv import load_dotenv
 from app.models.preference import UserPreference
+
+load_dotenv()
 
 JOBSPY_SOURCES = (
     "Indeed",
     "LinkedIn",
-    "Glassdoor",
-    "Google",
-    "ZipRecruiter",
-    "Naukri",
 )
 
 JOBSPY_SITE_KEYS = {
     "Indeed": "indeed",
     "LinkedIn": "linkedin",
-    "Glassdoor": "glassdoor",
-    "Google": "google",
-    "ZipRecruiter": "zip_recruiter",
     "Naukri": "naukri",
 }
 
@@ -61,7 +57,7 @@ def generate_queries(preferences: UserPreference) -> list[str]:
         queries.append(f"Remote {roles[0]}")
 
     unique_queries = list(dict.fromkeys(queries))
-    return unique_queries[:5]
+    return unique_queries[:3]
 
 
 def _jobspy_enabled() -> bool:
@@ -70,9 +66,9 @@ def _jobspy_enabled() -> bool:
 
 def _jobspy_results_wanted() -> int:
     try:
-        return max(1, min(int(os.environ.get("JOBSPY_RESULTS_WANTED", "20")), 50))
+        return max(1, min(int(os.environ.get("JOBSPY_RESULTS_WANTED", "5")), 50))
     except ValueError:
-        return 20
+        return 5
 
 
 def generate_dynamic_urls(preferences: UserPreference, target_websites: list[str] = None) -> list[dict]:
@@ -126,24 +122,23 @@ def generate_dynamic_urls(preferences: UserPreference, target_websites: list[str
                 "url": f"https://api.adzuna.com/v1/api/jobs/{country}/search/1?{query_string}"
             })
 
-    for query in queries:
-        params = {
-            "Keyword": query,
-            "ResultsPerPage": 100
-        }
-        if primary_location:
-            params["LocationName"] = primary_location
-        query_string = urllib.parse.urlencode(params)
-        urls.append({
-            "source": "USAJobs",
-            "url": f"https://data.usajobs.gov/api/search?{query_string}"
-        })
+    if os.environ.get("USAJOBS_API_KEY"):
+        for query in queries:
+            params = {
+                "Keyword": query,
+                "ResultsPerPage": 100
+            }
+            if primary_location:
+                params["LocationName"] = primary_location
+            query_string = urllib.parse.urlencode(params)
+            urls.append({
+                "source": "USAJobs",
+                "url": f"https://data.usajobs.gov/api/search?{query_string}"
+            })
 
     greenhouse_companies = [
-        "openai", "stripe", "notion", "figma", "discord",
-        "twitch", "reddit", "pinterest", "asana", "datadog",
-        "snowflake", "hashicorp", "doordash", "instacart", "okta",
-        "gitlab", "coursera", "duolingo", "plaid", "roblox"
+        "stripe", "figma", "datadog", "reddit", "pinterest",
+        "gitlab", "roblox", "discord", "mongodb", "coinbase",
     ]
     for company in greenhouse_companies:
         urls.append({
@@ -152,9 +147,7 @@ def generate_dynamic_urls(preferences: UserPreference, target_websites: list[str
         })
 
     lever_companies = [
-        "netflix", "canva", "anthropic", "yelp", "quora",
-        "atlassian", "palantir", "peloton", "robinhood", "shopify",
-        "kiva", "eventbrite", "lyft", "github", "hootsuite"
+        "palantir", "spotify", "rover",
     ]
     for company in lever_companies:
         urls.append({
@@ -162,22 +155,21 @@ def generate_dynamic_urls(preferences: UserPreference, target_websites: list[str
             "url": f"https://api.lever.co/v0/postings/{company}?mode=json"
         })
 
-    for query in queries:
-        encoded_query = urllib.parse.quote(query)
-        urls.append({
-            "source": "WeWorkRemotely",
-            "url": f"https://weworkremotely.com/remote-jobs/search?term={encoded_query}"
-        })
+    urls.append({
+        "source": "WeWorkRemotely",
+        "url": "https://weworkremotely.com/categories/remote-programming-jobs.rss"
+    })
+    urls.append({
+        "source": "WeWorkRemotely",
+        "url": "https://weworkremotely.com/remote-jobs.rss"
+    })
 
-    for query in queries:
-        encoded_query = urllib.parse.quote(query)
+    if queries:
+        encoded_query = urllib.parse.quote(queries[0])
         urls.append({
             "source": "WorkAtAStartup",
             "url": f"https://www.workatastartup.com/jobs?query={encoded_query}"
         })
-
-    for query in queries:
-        encoded_query = urllib.parse.quote(query)
         urls.append({
             "source": "Wellfound",
             "url": f"https://wellfound.com/jobs?query={encoded_query}"

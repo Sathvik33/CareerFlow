@@ -11,7 +11,7 @@ class LeverConnector(JobSource):
         roles = [r.lower() for r in (preferences.roles or ["engineer"])]
         
         headers = {"User-Agent": get_random_user_agent()}
-        async with httpx.AsyncClient(timeout=10.0) as client:
+        async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
             try:
                 response = await client.get(url, headers=headers)
                 if response.status_code == 200:

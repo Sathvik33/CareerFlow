@@ -1,5 +1,8 @@
 import asyncio
+import json
 import os
+import subprocess
+import sys
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import urlparse, parse_qs
@@ -36,7 +39,7 @@ def _parse_site_from_url(url: str) -> str | None:
 
 
 def _results_wanted_from_url(url: str) -> int:
-    default = int(os.environ.get("JOBSPY_RESULTS_WANTED", "20"))
+    default = int(os.environ.get("JOBSPY_RESULTS_WANTED", "5"))
     default = max(1, min(default, 50))
     if not url or "://" not in url:
         return default
@@ -47,14 +50,6 @@ def _results_wanted_from_url(url: str) -> int:
         except ValueError:
             pass
     return default
-
-
-def _proxy_list() -> list[str] | None:
-    raw = os.environ.get("JOBSPY_PROXIES", "").strip()
-    if not raw:
-        return None
-    proxies = [p.strip() for p in raw.split(",") if p.strip()]
-    return proxies or None
 
 
 def _normalize_row(row: dict, site: str) -> dict:
@@ -99,50 +94,85 @@ def _normalize_row(row: dict, site: str) -> dict:
     }
 
 
-def _scrape_sync(site: str, preferences: UserPreference, results_wanted: int) -> list[dict]:
+_CHILD_SCRIPT = """
+import json, sys
+
+site = sys.argv[1]
+search_term = sys.argv[2]
+results_wanted = int(sys.argv[3])
+location = sys.argv[4] if len(sys.argv) > 4 and sys.argv[4] else None
+country = sys.argv[5] if len(sys.argv) > 5 and sys.argv[5] else None
+
+try:
     from jobspy import scrape_jobs
-
-    queries = generate_queries(preferences)
-    search_term = queries[0] if queries else "Software Engineer"
-    location = ""
-    if preferences and preferences.locations:
-        location = preferences.locations[0]
-
     kwargs = {
         "site_name": [site],
         "search_term": search_term,
-        "location": location or None,
         "results_wanted": results_wanted,
         "hours_old": 72,
         "verbose": 0,
     }
-
-    if site in ("indeed", "glassdoor"):
-        kwargs["country_indeed"] = infer_indeed_country(location)
-
-    if is_remote_preference(preferences):
-        kwargs["is_remote"] = True
-
-    proxies = _proxy_list()
-    if proxies:
-        kwargs["proxies"] = proxies
-
-    if site == "linkedin":
-        kwargs["linkedin_fetch_description"] = os.environ.get(
-            "JOBSPY_LINKEDIN_FETCH_DESCRIPTION", "false"
-        ).lower() in ("1", "true", "yes")
+    if location:
+        kwargs["location"] = location
+    if country and site in ("indeed", "glassdoor"):
+        kwargs["country_indeed"] = country
 
     df = scrape_jobs(**kwargs)
-    if df is None or getattr(df, "empty", True):
-        return []
+    if df is not None and not df.empty:
+        records = df.to_dict(orient="records")
+        for r in records:
+            for k, v in list(r.items()):
+                if hasattr(v, "isoformat"):
+                    r[k] = v.isoformat()
+                elif str(v) == "nan" or v is None:
+                    r[k] = None
+        print(json.dumps(records))
+    else:
+        print("[]")
+except Exception as e:
+    print("[]")
+"""
 
-    jobs = []
-    for row in df.to_dict(orient="records"):
-        title = str(row.get("title") or "").strip()
-        if not title:
-            continue
-        jobs.append(_normalize_row(row, site))
-    return jobs
+
+def _scrape_isolated_subprocess(site: str, preferences: UserPreference, results_wanted: int) -> list[dict]:
+    """Runs JobSpy inside an isolated child process to protect the main Uvicorn process from tls-client-64.dll crashes."""
+    queries = generate_queries(preferences)
+    search_term = queries[0] if queries else "Software Engineer"
+    location = preferences.locations[0] if preferences and preferences.locations else ""
+    country = infer_indeed_country(location) if site in ("indeed", "glassdoor") else ""
+
+    args = [
+        sys.executable,
+        "-c",
+        _CHILD_SCRIPT,
+        site,
+        search_term,
+        str(results_wanted),
+        location,
+        country,
+    ]
+
+    try:
+        proc = subprocess.run(args, capture_output=True, text=True, timeout=25.0)
+        if proc.returncode != 0:
+            print(f"JobSpy subprocess exited with code {proc.returncode} for {site}")
+            return []
+
+        stdout = proc.stdout.strip()
+        if not stdout:
+            return []
+
+        raw_records = json.loads(stdout)
+        jobs = []
+        for row in raw_records:
+            title = str(row.get("title") or "").strip()
+            if not title:
+                continue
+            jobs.append(_normalize_row(row, site))
+        return jobs
+    except Exception as e:
+        print(f"JobSpy isolated runner error for {site}: {e}")
+        return []
 
 
 class JobSpyConnector(JobSource):
@@ -152,17 +182,15 @@ class JobSpyConnector(JobSource):
 
         site_key = _parse_site_from_url(url)
         if not site_key:
-            print("JobSpyConnector: missing site in url")
             return []
 
         site = SOURCE_TO_SITE.get(site_key.lower())
         if not site:
-            print(f"JobSpyConnector: unsupported site '{site_key}'")
             return []
 
         results_wanted = _results_wanted_from_url(url)
         try:
-            return await asyncio.to_thread(_scrape_sync, site, preferences, results_wanted)
+            return await asyncio.to_thread(_scrape_isolated_subprocess, site, preferences, results_wanted)
         except Exception as e:
             print(f"Error fetching from JobSpy ({site}): {e}")
             return []

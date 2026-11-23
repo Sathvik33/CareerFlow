@@ -16,35 +16,46 @@ class WellfoundConnector(JobSource):
                 return []
 
             soup = BeautifulSoup(html, "html.parser")
+            seen = set()
 
-            job_elements = soup.find_all("div", class_=lambda c: c and "job" in c.lower())
+            # Target Wellfound job links: /jobs/<id>-<slug>
+            job_links = soup.find_all(
+                "a",
+                href=lambda h: h and h.startswith("/jobs/")
+                and not h.startswith("/jobs/signup")
+                and not h.startswith("/jobs/l/")
+                and not h.startswith("/jobs/r/")
+            )
 
-            for el in job_elements[:10]:
-                title_el = el.find(["h2", "h3", "h4", "a"])
-                if not title_el:
+            roles = preferences.roles or ["engineer"]
+
+            for a in job_links:
+                href = a["href"]
+                title = a.get_text(strip=True)
+                if not title or len(title) < 4 or href in seen:
                     continue
+                seen.add(href)
 
-                title = title_el.get_text(strip=True)
-                if not title or len(title) < 5:
-                    continue
-
-                link_el = el.find("a", href=True)
-                apply_url = (
-                    ("https://wellfound.com" + link_el["href"])
-                    if link_el and link_el["href"].startswith("/")
-                    else (link_el["href"] if link_el else url)
-                )
-
-                roles = preferences.roles or ["engineer"]
                 if not role_matches(title, roles):
                     continue
+
+                apply_url = f"https://wellfound.com{href}" if href.startswith("/") else href
+
+                # Check if parent card has company or location text
+                parent = a.find_parent("div")
+                company = "Wellfound Startup"
+                location = "Remote / Hybrid"
+                if parent:
+                    comp_link = parent.find("a", href=lambda h: h and "/company/" in h)
+                    if comp_link and comp_link.get_text(strip=True):
+                        company = comp_link.get_text(strip=True)
 
                 jobs.append({
                     "source": "Wellfound",
                     "external_id": str(uuid.uuid4()),
-                    "company": "Wellfound Startup",
+                    "company": company,
                     "title": title,
-                    "location": "Remote",
+                    "location": location,
                     "remote": True,
                     "description": "",
                     "salary": None,
@@ -52,7 +63,7 @@ class WellfoundConnector(JobSource):
                     "company_logo": "",
                     "posted_date": None,
                     "skills": [],
-                    "scraped_at": datetime.now(timezone.utc)
+                    "scraped_at": datetime.now(timezone.utc),
                 })
         except Exception as e:
             print(f"Error fetching from Wellfound: {e}")

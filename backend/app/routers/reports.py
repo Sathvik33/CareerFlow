@@ -11,7 +11,7 @@ from app.models.report import DailyReport
 from app.schemas.report import DailyReportResponse
 from app.models.resume import Resume
 from app.models.preference import UserPreference
-from app.pipeline.daily_pipeline import daily_pipeline
+from app.pipeline.daily_pipeline import daily_pipeline, set_progress_queue
 from app.db.database import SessionLocal
 from pydantic import BaseModel
 
@@ -143,29 +143,31 @@ async def stream_report_generation(
 
     async def event_stream():
         session = SessionLocal()
-        try:
-            yield f"data: {json.dumps({'message': 'Initializing AI Agent Pipeline...'})}\n\n"
-            await asyncio.sleep(0.5)
+        queue = asyncio.Queue()
 
-            local_resume = session.query(Resume).filter(Resume.id == resume.id).first()
-
-            initial_state = {
-                "db": session,
-                "user_id": str(current_user.id),
-                "resume": local_resume,
-                "preferences": pref,
-                "target_websites": request.websites,
-                "max_jobs": request.max_jobs,
-                "raw_jobs": [],
-                "new_jobs": [],
-                "jds": [],
-                "match_results": [],
-                "gap_analyses": [],
-                "recommendations": [],
-                "daily_report": None
-            }
-
+        async def run_pipeline():
             try:
+                local_resume = session.query(Resume).filter(Resume.id == resume.id).first()
+
+                # Set progress queue via contextvars (not in LangGraph state to avoid serialization issues)
+                set_progress_queue(queue)
+
+                initial_state = {
+                    "db": session,
+                    "user_id": str(current_user.id),
+                    "resume": local_resume,
+                    "preferences": pref,
+                    "target_websites": request.websites,
+                    "max_jobs": request.max_jobs,
+                    "raw_jobs": [],
+                    "new_jobs": [],
+                    "jds": [],
+                    "match_results": [],
+                    "gap_analyses": [],
+                    "recommendations": [],
+                    "daily_report": None,
+                }
+
                 async for event in daily_pipeline.astream(initial_state):
                     for node_name, node_state in event.items():
                         log_msg = f"Completed step: {node_name}"
@@ -185,14 +187,65 @@ async def stream_report_generation(
                         elif node_name == "notify":
                             log_msg = "Dispatching notifications..."
                             
-                        yield f"data: {json.dumps({'message': log_msg})}\n\n"
-                        await asyncio.sleep(0.5) 
-                
-                yield f"data: {json.dumps({'message': 'Scan Complete!', 'done': True})}\n\n"
+                        await queue.put({"message": log_msg})
+
+                await queue.put({"message": "Scan Complete!", "done": True})
             except Exception as e:
-                print(f"Streaming error: {e}")
-                yield f"data: {json.dumps({'error': f'Pipeline failed: {str(e)}'})}\n\n"
+                import traceback
+                traceback.print_exc()
+                print(f"Pipeline error: {e}")
+                try:
+                    await queue.put({"error": f"Pipeline failed: {str(e)}"})
+                except Exception:
+                    pass
+            finally:
+                try:
+                    await queue.put(None)  # Sentinel to stop
+                except Exception:
+                    pass
+
+        task = asyncio.create_task(run_pipeline())
+
+        try:
+            yield f"data: {json.dumps({'message': 'Initializing AI Agent Pipeline...'})}\n\n"
+            sites_str = ", ".join(request.websites) if request.websites else "selected job boards"
+            yield f"data: {json.dumps({'message': f'Searching {sites_str} for matching jobs...'})}\n\n"
+
+            while True:
+                try:
+                    item = await asyncio.wait_for(queue.get(), timeout=2.0)
+                    if item is None:
+                        break
+                    yield f"data: {json.dumps(item)}\n\n"
+                except asyncio.TimeoutError:
+                    # Keepalive heartbeat to prevent browser/socket timeout
+                    yield ": keepalive\n\n"
+                except Exception as e:
+                    print(f"SSE yield error: {e}")
+                    yield f"data: {json.dumps({'error': f'Stream error: {str(e)}'})}\n\n"
+                    break
+        except GeneratorExit:
+            # Client disconnected — cancel the pipeline task
+            print("SSE: client disconnected")
+            task.cancel()
+        except Exception as e:
+            print(f"SSE generator error: {e}")
         finally:
+            # Give the task a moment to finish if it's almost done
+            if not task.done():
+                task.cancel()
+                try:
+                    await asyncio.wait_for(asyncio.shield(task), timeout=1.0)
+                except Exception:
+                    pass
             session.close()
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )

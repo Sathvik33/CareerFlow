@@ -1,5 +1,7 @@
+import asyncio
 import os
 import random
+import httpx
 
 from dotenv import load_dotenv
 
@@ -18,42 +20,31 @@ def get_random_user_agent() -> str:
 
 def connector_timeout_seconds() -> float:
     try:
-        return float(os.environ.get("CONNECTOR_TIMEOUT_SECONDS", "90"))
+        return float(os.environ.get("CONNECTOR_TIMEOUT_SECONDS", "15"))
     except ValueError:
-        return 90.0
+        return 15.0
 
 
-async def fetch_with_crawlee(url: str, wait_seconds: float = 2.0) -> str:
-    from crawlee import Request
-    from crawlee.crawlers import PlaywrightCrawler, PlaywrightCrawlingContext
-
-    html_holder: dict[str, str] = {"html": ""}
-
-    crawler = PlaywrightCrawler(
-        max_requests_per_crawl=1,
-        max_crawl_depth=0,
-        headless=True,
-        browser_type="chromium",
-    )
-
-    @crawler.router.default_handler
-    async def request_handler(context: PlaywrightCrawlingContext) -> None:
-        page = context.page
-        try:
-            await page.wait_for_load_state("domcontentloaded", timeout=30_000)
-        except Exception:
-            pass
-        if wait_seconds > 0:
-            await page.wait_for_timeout(int(wait_seconds * 1000))
-        html_holder["html"] = await page.content()
-
+async def fetch_with_crawlee(url: str, wait_seconds: float = 1.5) -> str:
+    """Fetches page content asynchronously using httpx with browser headers and SSL verification bypassed."""
+    headers = {
+        "User-Agent": get_random_user_agent(),
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Sec-Ch-Ua": '"Chromium";v="120", "Google Chrome";v="120"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+    }
     try:
-        await crawler.run([Request.from_url(url)])
+        async with httpx.AsyncClient(headers=headers, timeout=12.0, verify=False, follow_redirects=True) as client:
+            resp = await client.get(url)
+            if resp.status_code == 200:
+                return resp.text
+            print(f"fetch_with_crawlee: status {resp.status_code} for {url}")
+            return ""
     except Exception as e:
-        print(f"Crawlee error fetching {url}: {e}")
+        print(f"fetch_with_crawlee error for {url}: {e}")
         return ""
-
-    return html_holder["html"]
 
 
 def role_matches(text_to_search: str, roles: list[str]) -> bool:

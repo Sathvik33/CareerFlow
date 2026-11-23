@@ -9,7 +9,7 @@ class AdzunaConnector(JobSource):
     async def fetch_jobs(self, url: str, preferences: UserPreference) -> list[dict]:
         jobs = []
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
                 response = await client.get(url)
                 if response.status_code == 200:
                     results = response.json().get("results", [])

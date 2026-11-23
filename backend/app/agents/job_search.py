@@ -60,21 +60,37 @@ async def search_jobs(
     preferences: UserPreference,
     max_jobs: int = 50,
     target_websites: list[str] = None,
+    progress_callback=None,
 ) -> list[dict]:
     url_targets = generate_dynamic_urls(preferences, target_websites)
     print(f"Generated {len(url_targets)} URLs to fetch.")
 
     max_concurrent = int(os.environ.get("CONNECTOR_MAX_CONCURRENT", "8"))
     sem = asyncio.Semaphore(max_concurrent)
+    source_counts: dict[str, int] = {}
+    completed = 0
+    total = len(url_targets)
 
     async def _bounded(target):
+        nonlocal completed
         source = target.get("source")
         url = target.get("url")
         connector = CONNECTOR_MAP.get(source)
         if not connector:
+            completed += 1
             return []
         async with sem:
-            return await _fetch_with_timeout(connector, url, preferences)
+            result = await _fetch_with_timeout(connector, url, preferences)
+            completed += 1
+            if isinstance(result, list) and result:
+                source_counts[source] = source_counts.get(source, 0) + len(result)
+                if progress_callback:
+                    await progress_callback(
+                        f"[{completed}/{total}] {source}: found {len(result)} jobs"
+                    )
+            elif progress_callback:
+                await progress_callback(f"[{completed}/{total}] {source}: 0 jobs")
+            return result
 
     tasks = [_bounded(t) for t in url_targets]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -85,6 +101,12 @@ async def search_jobs(
             all_jobs.extend(result)
         elif isinstance(result, Exception):
             print(f"Connector task failed with exception: {result}")
+
+    if progress_callback:
+        summary_parts = [f"{src}: {cnt}" for src, cnt in sorted(source_counts.items())]
+        await progress_callback(
+            f"Scraping complete — {len(all_jobs)} total jobs ({', '.join(summary_parts) or 'none'})"
+        )
 
     if preferences and preferences.roles:
         role_words = set()

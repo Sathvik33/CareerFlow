@@ -16,52 +16,52 @@ class WorkAtAStartupConnector(JobSource):
                 return []
 
             soup = BeautifulSoup(html, "html.parser")
+            seen = set()
 
-            job_elements = soup.find_all(
-                "div", class_=lambda c: c and ("job" in c.lower() or "role" in c.lower())
+            # YC Work at a Startup job cards are linked with /jobs/<id>
+            job_links = soup.find_all(
+                "a",
+                href=lambda h: h and h.startswith("/jobs/") and h.split("/jobs/")[1].isdigit()
             )
 
-            for el in job_elements[:10]:
-                title_el = el.find(
-                    ["h2", "h3", "h4", "a", "span", "div"],
-                    class_=lambda c: c and ("title" in c.lower() or "name" in c.lower()),
-                )
+            roles = preferences.roles or ["engineer"]
 
-                if not title_el:
-                    title_el = el.find(["a"])
+            for a in job_links:
+                href = a["href"]
+                if href in seen:
+                    continue
+                seen.add(href)
 
-                if not title_el:
+                text_parts = [p.strip() for p in a.get_text("\n").split("\n") if p.strip()]
+                if not text_parts:
                     continue
 
-                title = title_el.get_text(strip=True)
-                if not title or len(title) < 4:
+                company = text_parts[0] if len(text_parts) >= 1 else "YC Startup"
+                title = text_parts[2] if len(text_parts) >= 3 else text_parts[-1]
+                loc_salary = text_parts[3] if len(text_parts) >= 4 else ""
+
+                if not title or len(title) < 3:
                     continue
 
-                link_el = el.find("a", href=True)
-                apply_url = (
-                    ("https://www.workatastartup.com" + link_el["href"])
-                    if link_el and link_el["href"].startswith("/")
-                    else (link_el["href"] if link_el else url)
-                )
-
-                roles = preferences.roles or ["engineer"]
                 if not role_matches(title, roles):
                     continue
+
+                apply_url = f"https://www.workatastartup.com{href}"
 
                 jobs.append({
                     "source": "WorkAtAStartup",
                     "external_id": str(uuid.uuid4()),
-                    "company": "YC Startup",
+                    "company": company,
                     "title": title,
-                    "location": "Remote",
-                    "remote": True,
-                    "description": "",
-                    "salary": None,
+                    "location": loc_salary or "Remote / Hybrid",
+                    "remote": "remote" in loc_salary.lower() if loc_salary else True,
+                    "description": text_parts[1] if len(text_parts) >= 2 else "",
+                    "salary": loc_salary if "$" in loc_salary else None,
                     "apply_url": apply_url,
                     "company_logo": "",
                     "posted_date": None,
                     "skills": [],
-                    "scraped_at": datetime.now(timezone.utc)
+                    "scraped_at": datetime.now(timezone.utc),
                 })
         except Exception as e:
             print(f"Error fetching from WorkAtAStartup: {e}")

@@ -1,4 +1,5 @@
 import asyncio
+import contextvars
 from typing import TypedDict, Annotated
 from langgraph.graph import StateGraph, START, END
 from app.models.preference import UserPreference
@@ -17,6 +18,15 @@ from app.models.job import Job
 from app.models.resume import Resume
 from app.models.match_result import MatchResult
 from sqlalchemy.orm import Session
+
+# Task-local progress queue — avoids putting non-serializable objects in LangGraph state
+_progress_queue_var: contextvars.ContextVar = contextvars.ContextVar("_progress_queue", default=None)
+
+
+def set_progress_queue(queue):
+    """Call before pipeline.astream() to enable mid-node SSE progress messages."""
+    _progress_queue_var.set(queue)
+
 
 class CareerFlowState(TypedDict):
     db: Session
@@ -38,9 +48,18 @@ async def collect_jobs(state: CareerFlowState):
     preferences = state.get("preferences")
     max_jobs = state.get("max_jobs", 50)
     target_websites = state.get("target_websites", [])
+    progress_queue = _progress_queue_var.get(None)
+
+    async def _progress(msg: str):
+        if progress_queue:
+            try:
+                await progress_queue.put({"message": msg})
+            except Exception:
+                pass
 
     print(f"[collect_jobs] Starting job aggregation...")
-    raw_jobs = await search_jobs(preferences, max_jobs, target_websites)
+    await _progress("Starting job scraping across selected boards...")
+    raw_jobs = await search_jobs(preferences, max_jobs, target_websites, progress_callback=_progress)
     return {"raw_jobs": raw_jobs}
 
 def deduplicate(state: CareerFlowState):

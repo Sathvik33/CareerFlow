@@ -10,7 +10,7 @@ class ArbeitnowConnector(JobSource):
         jobs = []
         try:
             headers = {"User-Agent": get_random_user_agent()}
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
                 response = await client.get(url, headers=headers)
                 if response.status_code == 200:
                     data = response.json().get("data", [])
