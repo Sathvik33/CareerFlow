@@ -46,6 +46,7 @@ def _job_to_response(job: Job, match: MatchResult, action_items=None, improvemen
 
 
 @router.get("/", response_model=list[JobResponse])
+@router.get("", response_model=list[JobResponse], include_in_schema=False)
 def list_jobs(
     status: str | None = Query(None, description="Filter by pipeline status"),
     include_dismissed: bool = Query(False),

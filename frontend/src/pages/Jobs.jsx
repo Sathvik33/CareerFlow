@@ -29,11 +29,11 @@ export default function Jobs() {
     try {
       const params = filter === 'all' ? {} : { status: filter };
       const [{ data }, { data: counts }] = await Promise.all([
-        api.get('/jobs', { params }),
+        api.get('/jobs/', { params }),
         api.get('/jobs/pipeline/summary'),
       ]);
-      setJobs(data);
-      setSummary(counts || {});
+      setJobs(Array.isArray(data) ? data : []);
+      setSummary(counts && typeof counts === 'object' ? counts : {});
     } catch (err) {
       console.error(err);
       setError('Failed to load jobs. Make sure the backend is running.');

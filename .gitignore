@@ -137,3 +137,10 @@ alembic/__pycache__
 
 storage/
 backend/storage/
+
+
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.pem
+devops/ansible/inventory.ini
