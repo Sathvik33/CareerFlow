@@ -23,7 +23,7 @@ from sqlalchemy.orm import Session
 _progress_queue_var: contextvars.ContextVar = contextvars.ContextVar("_progress_queue", default=None)
 
 
-def set_progress_queue(queue):
+def set_progress_queue(queue):  
     """Call before pipeline.astream() to enable mid-node SSE progress messages."""
     _progress_queue_var.set(queue)
 

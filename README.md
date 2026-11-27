@@ -33,7 +33,8 @@ CareerFlow is an end-to-end autonomous job search assistant that unifies multi-c
   - **JobSpy Scraping Engine**: Headless TLS emulation for LinkedIn, Indeed, Glassdoor, Google Jobs, ZipRecruiter, and Naukri.
   - **Headless Browser Crawling**: Crawlee + Playwright for dynamic, JavaScript-rendered boards like Wellfound and WorkAtAStartup.
 - **Hybrid Matching Engine**:
-  - **Dense Semantic Embeddings**: 384-dimensional vector embeddings powered by `SentenceTransformer('all-MiniLM-L6-v2')` and PostgreSQL `pgvector`.
+  - **Dense Semantic Embeddings**: 
+  -dimensional vector embeddings powered by `SentenceTransformer('all-MiniLM-L6-v2')` and PostgreSQL `pgvector`.
   - **Sparse Keyword Match**: Okapi BM25 scoring with soft hyperbolic tangent ($\tanh$) normalization.
   - **Weighted Scoring**:
     $$\text{Final Score} = (0.7 \times \text{Semantic Score}) + (0.3 \times \text{BM25 Score}) + \text{Remote Bonus (+5)}$$

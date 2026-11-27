@@ -9,3 +9,17 @@ from app.models.job_embedding import JobEmbedding
 from app.models.match_result import MatchResult
 from app.models.recommendation import Recommendation
 from app.models.notification_log import NotificationLog
+
+__all__ = [
+    "User",
+    "UserPreference",
+    "Resume",
+    "NotificationChannel",
+    "DailyReport",
+    "Job",
+    "ResumeEmbedding",
+    "JobEmbedding",
+    "MatchResult",
+    "Recommendation",
+    "NotificationLog",
+]

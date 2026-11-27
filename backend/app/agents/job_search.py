@@ -92,20 +92,42 @@ async def search_jobs(
                 await progress_callback(f"[{completed}/{total}] {source}: 0 jobs")
             return result
 
-    tasks = [_bounded(t) for t in url_targets]
-    results = await asyncio.gather(*tasks, return_exceptions=True)
+    stop_threshold = max_jobs + 5
+    tasks = [asyncio.create_task(_bounded(t)) for t in url_targets]
+    pending = set(tasks)
     all_jobs = []
+    stopped_early = False
 
-    for result in results:
-        if isinstance(result, list):
-            all_jobs.extend(result)
-        elif isinstance(result, Exception):
-            print(f"Connector task failed with exception: {result}")
+    while pending:
+        done, pending = await asyncio.wait(pending, return_when=asyncio.FIRST_COMPLETED)
+        for task in done:
+            try:
+                result = task.result()
+                if isinstance(result, list):
+                    all_jobs.extend(result)
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                print(f"Connector task failed with exception: {exc}")
+
+        if len(all_jobs) >= stop_threshold:
+            stopped_early = True
+            for remaining in pending:
+                remaining.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+            pending.clear()
+            break
 
     if progress_callback:
         summary_parts = [f"{src}: {cnt}" for src, cnt in sorted(source_counts.items())]
+        prefix = (
+            f"Reached {len(all_jobs)} scraped jobs (limit {max_jobs} + 5 buffer) — stopping scraping early"
+            if stopped_early
+            else f"Scraping complete — {len(all_jobs)} total jobs"
+        )
         await progress_callback(
-            f"Scraping complete — {len(all_jobs)} total jobs ({', '.join(summary_parts) or 'none'})"
+            f"{prefix} ({', '.join(summary_parts) or 'none'})"
         )
 
     if preferences and preferences.roles:

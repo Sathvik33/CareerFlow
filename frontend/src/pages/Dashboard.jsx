@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import api from '../services/api';
+import api, { API_BASE_URL } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Briefcase, TrendingUp, Building, Zap, AlertTriangle, Lightbulb, X, FileText, Settings, Mail } from 'lucide-react';
 
@@ -16,7 +16,7 @@ export default function Dashboard() {
     'Indeed', 'LinkedIn', 'Glassdoor', 'Google', 'ZipRecruiter', 'Naukri',
   ];
   const [targetWebsites, setTargetWebsites] = useState([
-    'Arbeitnow', 'RemoteOK', 'Greenhouse', 'Lever', 'Indeed',
+    'Arbeitnow', 'RemoteOK', 'Greenhouse', 'Lever', 'Himalayas', 'Indeed',
   ]);
   const [maxJobs, setMaxJobs] = useState(5);
 
@@ -54,7 +54,13 @@ export default function Dashboard() {
 
     try {
       const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:8000/reports/stream-scan', {
+      const baseUrl = API_BASE_URL;
+      
+      // 5-minute timeout to prevent browser from killing long-running scans
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5 * 60 * 1000);
+      
+      const response = await fetch(`${baseUrl}/reports/stream-scan`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -63,52 +69,101 @@ export default function Dashboard() {
         body: JSON.stringify({
           websites: targetWebsites,
           max_jobs: maxJobs
-        })
+        }),
+        signal: controller.signal
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        setScanMessage(errorData.detail || 'Failed to start scan. Ensure you have a Resume & Preferences.');
+        let errorDetail = 'Failed to start scan. Ensure you have a Resume & Preferences.';
+        try {
+          const errorData = await response.json();
+          errorDetail = errorData.detail || errorDetail;
+        } catch {
+          const text = await response.text();
+          if (text) errorDetail = text;
+        }
+
+        if (response.status === 401) {
+          errorDetail = 'Session expired. Please log in again.';
+        }
+
+        setScanMessage(errorDetail);
         setScanning(false);
         return;
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+      let streamEndedNaturally = false;
+
+      const processLine = (line) => {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('data: ')) {
+          const dataStr = trimmed.substring(6).trim();
+          if (!dataStr) return false;
+          try {
+            const data = JSON.parse(dataStr);
+            if (data.message) {
+              setScanLogs(prev => [...prev, data.message]);
+            }
+            if (data.error) {
+              setScanMessage(data.error);
+              setScanning(false);
+              return true; // Stop reading
+            }
+            if (data.done) {
+              setScanning(false);
+              setScanMessage('Scan complete! Your new report is ready.');
+              fetchReport();
+              return true; // Stop reading
+            }
+          } catch (e) {
+            console.error("Error parsing stream JSON", e, dataStr);
+          }
+        }
+        return false;
+      };
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n');
-        
+        if (done) {
+          streamEndedNaturally = true;
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        let shouldStop = false;
         for (let line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.substring(6);
-            if (!dataStr) continue;
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.message) {
-                setScanLogs(prev => [...prev, data.message]);
-              }
-              if (data.error) {
-                setScanMessage(data.error);
-                setScanning(false);
-              }
-              if (data.done) {
-                setScanning(false);
-                setScanMessage('Scan complete! Your new report is ready.');
-                fetchReport();
-              }
-            } catch (e) {
-              console.error("Error parsing stream JSON", e);
-            }
+          if (processLine(line)) {
+            shouldStop = true;
+            break;
           }
         }
+        if (shouldStop) break;
       }
+
+      // Flush remaining buffer after stream close
+      if (buffer.trim()) {
+        processLine(buffer.trim());
+      }
+      
+      clearTimeout(timeoutId);
     } catch (err) {
-      setScanMessage('Connection to streaming server failed.');
+      console.error("Stream scan connection error:", err);
+      // Only set generic error if no specific error or completion message was already delivered
+      setScanMessage(prev => {
+        if (prev && (prev.includes('complete') || prev.includes('Pipeline failed') || prev.includes('Session expired'))) {
+          return prev;
+        }
+        if (err.name === 'AbortError') {
+          return 'Scan timed out after 5 minutes. The pipeline may still be running in the background.';
+        }
+        return err.message ? `Connection error: ${err.message}` : 'Connection to streaming server failed.';
+      });
       setScanning(false);
     }
   };
@@ -319,12 +374,22 @@ export default function Dashboard() {
           <div className="glass-panel" style={{...styles.card, marginTop: '24px'}}>
             <h3 style={styles.cardTitle}><Building size={20} color="var(--primary)"/> Live Company Insights</h3>
             <div style={styles.insights}>
-              {report.company_insights && Object.entries(report.company_insights).map(([company, insight], i) => (
-                <div key={i} style={styles.insightItem}>
-                  <strong style={{ fontSize: '16px' }}>{company}</strong>
-                  <p style={{ marginTop: '6px', fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{insight}</p>
-                </div>
-              ))}
+              {report.company_insights && Object.entries(report.company_insights).map(([company, insight], i) => {
+                const cleanInsight = typeof insight === 'string'
+                  ? insight
+                      .replace(/^#{1,6}\s*/gm, '')
+                      .replace(/\*\*(.*?)\*\*/g, '$1')
+                      .replace(/__(.*?)__/g, '$1')
+                      .replace(/`([^`]*)`/g, '$1')
+                      .trim()
+                  : insight;
+                return (
+                  <div key={i} style={styles.insightItem}>
+                    <strong style={{ fontSize: '16px' }}>{company}</strong>
+                    <p style={{ marginTop: '6px', fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{cleanInsight}</p>
+                  </div>
+                );
+              })}
             </div>
           </div>
 

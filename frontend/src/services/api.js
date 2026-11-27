@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000',
+  baseURL: API_BASE_URL,
 });
 
 // Attach access token to every request
@@ -25,8 +27,8 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem('refresh_token');
         if (!refreshToken) throw new Error('No refresh token available');
 
-        // Call the refresh endpoint we built
-        const { data } = await axios.post('http://localhost:8000/users/refresh', {
+        // Call the refresh endpoint
+        const { data } = await axios.post(`${API_BASE_URL}/users/refresh`, {
           refresh_token: refreshToken
         });
 

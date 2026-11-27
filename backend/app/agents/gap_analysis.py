@@ -4,12 +4,12 @@ from app.agents.llm import get_llm
 from app.agents.models import ResumeModel, JDModel, GapAnalysisModel
 
 async def analyze_gap(resume: ResumeModel, jd: JDModel, semantic_score: float, bm25_score: float) -> GapAnalysisModel:
-    llm = get_llm()
+    llm = get_llm(max_tokens=350)
     parser = PydanticOutputParser(pydantic_object=GapAnalysisModel)
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert career counselor. Compare the resume to the job description and identify missing skills and strengths. The semantic match score is {semantic_score}/100 and BM25 score is {bm25_score}/100.\n{format_instructions}"),
-        ("user", "Resume: {resume}\n\nJob Description: {jd}")
+        ("system", "Compare resume vs JD (semantic={semantic_score}/100, BM25={bm25_score}/100). Return concise strengths and missing skills as JSON only.\n{format_instructions}"),
+        ("user", "Resume: {resume}\nJD: {jd}")
     ])
 
     chain = prompt | llm | parser

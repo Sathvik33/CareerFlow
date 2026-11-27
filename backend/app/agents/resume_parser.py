@@ -4,17 +4,17 @@ from app.agents.llm import get_llm
 from app.agents.models import ResumeModel
 
 def parse_resume(raw_text: str) -> ResumeModel:
-    llm = get_llm()
+    llm = get_llm(max_tokens=500)
     parser = PydanticOutputParser(pydantic_object=ResumeModel)
 
     prompt = ChatPromptTemplate.from_messages([
-        ("system", "You are an expert HR agent. Parse the following resume text and extract the required fields as structured JSON.\n{format_instructions}"),
+        ("system", "Extract resume fields as valid JSON only.\n{format_instructions}"),
         ("user", "{raw_text}")
     ])
 
     chain = prompt | llm | parser
 
     return chain.invoke({
-        "raw_text": raw_text,
+        "raw_text": (raw_text or "")[:6000],
         "format_instructions": parser.get_format_instructions()
     })

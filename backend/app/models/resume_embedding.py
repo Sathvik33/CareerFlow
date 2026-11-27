@@ -3,7 +3,7 @@ from uuid import uuid4
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import ARRAY, Float
+from pgvector.sqlalchemy import Vector
 
 from app.db.base import Base
 
@@ -22,7 +22,7 @@ class ResumeEmbedding(Base):
         index=True
     )
 
-    embedding = mapped_column(ARRAY(Float))
+    embedding = mapped_column(Vector(384))
 
     chunk_type: Mapped[str] = mapped_column(String)
 
