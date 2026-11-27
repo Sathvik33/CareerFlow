@@ -1,0 +1,120 @@
+---
+- name: Deploy CareerFlow (FastAPI + React + Nginx)
+  hosts: app_server
+  become: yes
+  vars:
+    app_dir: /var/www/careerflow
+    repo_url: "https://github.com/Sathvik33/CareerFlow"
+
+  tasks:
+    - name: Install system packages (Python, Node.js, Nginx, Git)
+      apt:
+        name:
+          - git
+          - python3-pip
+          - python3-venv
+          - nginx
+          - curl
+        state: present
+        update_cache: yes
+
+    - name: Install Node.js 20.x repository
+      shell: curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+      args:
+        creates: /etc/apt/sources.list.d/nodesource.list
+
+    - name: Install Node.js
+      apt:
+        name: nodejs
+        state: present
+
+    - name: Clone or pull CareerFlow repository
+      git:
+        repo: "{{ repo_url }}"
+        dest: "{{ app_dir }}"
+        version: main
+        force: yes
+
+    - name: Copy local backend .env file to server
+      copy:
+        src: ../../backend/.env
+        dest: "{{ app_dir }}/backend/.env"
+        mode: '0600'
+
+    - name: Set up Python virtualenv and install backend dependencies
+      pip:
+        requirements: "{{ app_dir }}/backend/requirements.txt"
+        virtualenv: "{{ app_dir }}/backend/venv"
+        virtualenv_command: python3 -m venv
+
+    - name: Install frontend dependencies and build React app
+      shell: |
+        npm install
+        npm run build
+      args:
+        chdir: "{{ app_dir }}/frontend"
+
+    - name: Create systemd service for FastAPI backend
+      copy:
+        dest: /etc/systemd/system/careerflow-backend.service
+        content: |
+          [Unit]
+          Description=CareerFlow FastAPI Backend
+          After=network.target
+
+          [Service]
+          User=ubuntu
+          WorkingDirectory={{ app_dir }}/backend
+          EnvironmentFile={{ app_dir }}/backend/.env
+          ExecStart={{ app_dir }}/backend/venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+          Restart=always
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable and restart FastAPI backend service
+      systemd:
+        name: careerflow-backend
+        enabled: yes
+        state: restarted
+        daemon_reload: yes
+
+    - name: Configure Nginx reverse proxy for React + FastAPI
+      copy:
+        dest: /etc/nginx/sites-available/careerflow
+        content: |
+          server {
+              listen 80;
+              server_name _;
+
+              root {{ app_dir }}/frontend/dist;
+              index index.html;
+
+              location / {
+                  try_files $uri $uri/ /index.html;
+              }
+
+              location /api/ {
+                  proxy_pass http://127.0.0.1:8000;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              }
+          }
+
+    - name: Enable CareerFlow Nginx site and disable default
+      file:
+        src: /etc/nginx/sites-available/careerflow
+        dest: /etc/nginx/sites-enabled/careerflow
+        state: link
+
+    - name: Remove default Nginx site
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        state: restarted
+        enabled: yes
